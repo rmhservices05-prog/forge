@@ -1,14 +1,5 @@
-import { Shield, UsersRound } from "lucide-react";
+import { UsersRound } from "lucide-react";
 import { users } from "../data/users";
-
-const futureModules = [
-  "Contacts",
-  "Companies",
-  "Opportunities",
-  "Contracts",
-  "Compliance and audit logs",
-  "Customer support tickets",
-];
 
 // TODO: Add CRM module routes for contacts, companies, opportunities, contracts, compliance logs, and support tickets.
 export function TeamSettings() {
@@ -37,23 +28,6 @@ export function TeamSettings() {
                 </div>
                 <span className="badge">{user.role}</span>
               </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel">
-          <div className="panel-heading">
-            <h3>Security Roadmap</h3>
-            <Shield size={18} />
-          </div>
-          <p className="panel-copy">
-            Forge currently stores placeholder task data locally. Production access should add SSO, role
-            checks, audit logging, and permission-aware API routes before sensitive operational data enters
-            the system.
-          </p>
-          <div className="module-grid">
-            {futureModules.map((moduleName) => (
-              <span key={moduleName}>{moduleName}</span>
             ))}
           </div>
         </article>

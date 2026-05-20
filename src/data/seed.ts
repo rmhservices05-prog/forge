@@ -28,7 +28,7 @@ export const seedTasks: Task[] = [
     title: "Map audit log requirements",
     description: "List future audit events for task changes, assignments, deletions, and permission changes.",
     assigneeId: "user-me",
-    status: "Backlog",
+    status: "To Do",
     priority: "Critical",
     dueDate: "2026-05-19",
     createdAt: "2026-05-15T14:20:00.000Z",

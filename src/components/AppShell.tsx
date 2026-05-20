@@ -1,25 +1,28 @@
-import { BarChart3, ClipboardList, ShieldCheck, Users } from "lucide-react";
+import { BarChart3, ClipboardList, Newspaper, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
+import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
 const navigationItems = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { to: "/tasks", label: "Tasks", icon: ClipboardList },
+  { to: "/news-room", label: "News Room", icon: Newspaper },
   { to: "/settings", label: "Team", icon: Users },
 ];
 
 export function AppShell() {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">
-            <ShieldCheck size={22} />
-          </div>
-          <div>
-            <p className="eyebrow">Dealtr.com</p>
-            <h1>Forge</h1>
-          </div>
-        </div>
+        <button
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="sidebar-collapse-button"
+          onClick={() => setIsCollapsed((current) => !current)}
+          type="button"
+        >
+          {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+        </button>
 
         <nav className="nav-list" aria-label="Main navigation">
           {navigationItems.map((item) => {
@@ -28,7 +31,7 @@ export function AppShell() {
             return (
               <NavLink key={item.to} to={item.to} className="nav-link">
                 <Icon size={18} />
-                <span>{item.label}</span>
+                <span className="nav-label">{item.label}</span>
               </NavLink>
             );
           })}

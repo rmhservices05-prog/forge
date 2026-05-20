@@ -40,9 +40,30 @@ function activityEvent(taskId: string, action: string, actorId: string): Activit
   };
 }
 
+function normalizeTaskStatus(status: string): Task["status"] {
+  if (status === "Backlog") {
+    return "To Do";
+  }
+
+  if (status === "Blocked") {
+    return "In Progress";
+  }
+
+  return status as Task["status"];
+}
+
+function normalizeTask(task: Task): Task {
+  return {
+    ...task,
+    status: normalizeTaskStatus(task.status),
+  };
+}
+
 export const taskRepository = {
   listTasks(): Task[] {
-    return readJson<Task[]>(TASKS_STORAGE_KEY, seedTasks);
+    const tasks = readJson<Task[]>(TASKS_STORAGE_KEY, seedTasks).map(normalizeTask);
+    writeJson(TASKS_STORAGE_KEY, tasks);
+    return tasks;
   },
 
   listActivity(): ActivityEvent[] {

@@ -7,7 +7,7 @@ export type User = {
   role: UserRole;
 };
 
-export type TaskStatus = "Backlog" | "To Do" | "In Progress" | "Blocked" | "Done";
+export type TaskStatus = "To Do" | "In Progress" | "Done";
 
 export type TaskPriority = "Low" | "Medium" | "High" | "Critical";
 

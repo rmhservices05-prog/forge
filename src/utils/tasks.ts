@@ -1,7 +1,7 @@
 import type { Task, TaskFilters, TaskPriority, TaskStatus } from "../types";
 import { isTaskOverdue } from "./date";
 
-export const statusOptions: TaskStatus[] = ["Backlog", "To Do", "In Progress", "Blocked", "Done"];
+export const statusOptions: TaskStatus[] = ["To Do", "In Progress", "Done"];
 export const priorityOptions: TaskPriority[] = ["Low", "Medium", "High", "Critical"];
 
 export function filterTasks(tasks: Task[], filters: TaskFilters): Task[] {

@@ -19,7 +19,6 @@ export function Dashboard() {
         <div>
           <p className="eyebrow">Forge command center</p>
           <h2>Task Operations Dashboard</h2>
-          <span>Internal v1 workspace for Dealtr task tracking and assignment.</span>
         </div>
         <Link className="primary-button" to="/tasks">
           Open tasks
