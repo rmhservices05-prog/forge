@@ -130,11 +130,9 @@ export function AuthPage() {
             {error ? <p className="form-error">{error}</p> : null}
             {message ? <p className="form-success">{message}</p> : null}
 
-            {!isSignup ? (
-              <button className="primary-button auth-submit-button" disabled={submitting || !isSupabaseConfigured} type="submit">
-                {submitting ? "Working..." : "Sign in"}
-              </button>
-            ) : null}
+            <button className="primary-button auth-submit-button" disabled={submitting || !isSupabaseConfigured} type="submit">
+              {submitting ? "Working..." : isSignup ? "Create account" : "Sign in"}
+            </button>
 
           </form>
         </section>
