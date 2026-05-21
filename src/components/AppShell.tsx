@@ -1,4 +1,4 @@
-import { BarChart3, Building2, ClipboardList, Newspaper, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
+import { BarChart3, Building2, ClipboardList, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
@@ -6,7 +6,6 @@ const navigationItems = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { to: "/companies", label: "Companies", icon: Building2 },
   { to: "/tasks", label: "Tasks", icon: ClipboardList },
-  { to: "/news-room", label: "News Room", icon: Newspaper },
   { to: "/settings", label: "Team", icon: Users },
 ];
 
