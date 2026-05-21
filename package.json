@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "start": "vite preview --host 0.0.0.0 --port ${PORT:-10000}",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",
@@ -28,6 +29,8 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.4.0",
-    "typescript-eslint": "^8.43.0"
+    "playwright": "^1.60.0",
+    "typescript-eslint": "^8.43.0",
+    "vitest": "^3.2.4"
   }
 }

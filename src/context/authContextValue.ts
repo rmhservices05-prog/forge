@@ -9,7 +9,9 @@ export type AuthContextValue = {
   loading: boolean;
   error: string;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (name: string, email: string, password: string) => Promise<void>;
+  updateProfile: (name: string) => Promise<void>;
+  refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 

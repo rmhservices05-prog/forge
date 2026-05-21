@@ -23,6 +23,12 @@ type CompanyRow = {
   updated_at: string;
 };
 
+type OrganizationPreferenceRow = {
+  organization_id: string;
+  project_icon: string | null;
+  updated_at: string;
+};
+
 export type CompanyInput = Pick<
   Company,
   | "name"
@@ -81,6 +87,22 @@ function toInsertRow(organizationId: string, company: Company | CompanyInput, in
   };
 }
 
+function shouldSeedCompanies(companyCount: number, hasOrganizationPreferences: boolean) {
+  return companyCount === 0 && !hasOrganizationPreferences;
+}
+
+function getNextCompanyIdFromRows(rows: Array<Pick<CompanyRow, "id"> | null | undefined>) {
+  const maxId = rows.reduce((currentMax, row) => {
+    if (typeof row?.id !== "number") {
+      return currentMax;
+    }
+
+    return Math.max(currentMax, row.id);
+  }, 0);
+
+  return maxId + 1;
+}
+
 async function ensureSeedCompanies(organizationId: string): Promise<void> {
   const client = requireSupabase();
   const { count, error } = await client
@@ -92,7 +114,17 @@ async function ensureSeedCompanies(organizationId: string): Promise<void> {
     throw error;
   }
 
-  if ((count ?? 0) > 0) {
+  const { data: preferences, error: preferencesError } = await client
+    .from("organization_preferences")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (preferencesError) {
+    throw preferencesError;
+  }
+
+  if (!shouldSeedCompanies(count ?? 0, Boolean(preferences))) {
     return;
   }
 
@@ -102,6 +134,16 @@ async function ensureSeedCompanies(organizationId: string): Promise<void> {
 
   if (insertError) {
     throw insertError;
+  }
+
+  const { error: preferenceUpsertError } = await client.from("organization_preferences").upsert({
+    organization_id: organizationId,
+    project_icon: (preferences as OrganizationPreferenceRow | null)?.project_icon ?? null,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (preferenceUpsertError) {
+    throw preferenceUpsertError;
   }
 }
 
@@ -119,7 +161,7 @@ async function getNextCompanyId(organizationId: string): Promise<number> {
     throw error;
   }
 
-  return typeof data?.id === "number" ? data.id + 1 : 1;
+  return getNextCompanyIdFromRows([data as Pick<CompanyRow, "id"> | null]);
 }
 
 export const companyRepository = {
@@ -202,4 +244,9 @@ export const companyRepository = {
       throw error;
     }
   },
+};
+
+export const companyRepositoryTestUtils = {
+  getNextCompanyIdFromRows,
+  shouldSeedCompanies,
 };

@@ -1,28 +1,44 @@
 import { BarChart3, Building2, ClipboardList, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import forgeLogo from "../assets/forgetrans.png";
+import { useAuth } from "../hooks/useAuth";
+import { useOrganization } from "../hooks/useOrganization";
 
 const navigationItems = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { to: "/companies", label: "Companies", icon: Building2 },
   { to: "/tasks", label: "Tasks", icon: ClipboardList },
 ];
-const teamNavigationItem = { to: "/settings", label: "Team", icon: Users };
+const teamNavigationItem = { to: "/settings", label: "Settings", icon: Users };
 
 export function AppShell() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const TeamIcon = teamNavigationItem.icon;
+  const { profile, user } = useAuth();
+  const { organization } = useOrganization();
+  const displayName = profile?.name || user?.email?.split("@")[0] || "Forge user";
+  const organizationName = organization?.name || "Forge Internal";
 
   return (
     <div className={`app-shell ${isCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <button
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="sidebar-collapse-button"
+          className="brand brand-toggle"
           onClick={() => setIsCollapsed((current) => !current)}
           type="button"
         >
-          {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          <span className="brand-mark" aria-hidden="true">
+            <img src={forgeLogo} alt="" className="brand-mark-image" />
+          </span>
+          <span className="brand-copy">
+            <p className="eyebrow">{displayName}</p>
+            <h1>{organizationName}</h1>
+          </span>
+          <span className="brand-toggle-icon" aria-hidden="true">
+            {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </span>
         </button>
 
         <nav className="nav-list" aria-label="Main navigation">

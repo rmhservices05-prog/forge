@@ -54,6 +54,9 @@ export function CompanyProfile() {
   });
   const [draftCompanyDetails, setDraftCompanyDetails] = useState(companyDetails);
   const [isEditingCompanyDetails, setIsEditingCompanyDetails] = useState(false);
+  const [companyDetailsError, setCompanyDetailsError] = useState("");
+  const [companyDetailsMessage, setCompanyDetailsMessage] = useState("");
+  const [isSavingCompanyDetails, setIsSavingCompanyDetails] = useState(false);
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [hasLogoLoadError, setHasLogoLoadError] = useState(false);
   const [contactDetails, setContactDetails] = useState({
@@ -86,6 +89,8 @@ export function CompanyProfile() {
     setDraftCompanyDetails(nextCompanyDetails);
     setContactDetails(nextContactDetails);
     setDraftContactDetails(nextContactDetails);
+    setCompanyDetailsError("");
+    setCompanyDetailsMessage("");
     setCompanyLogoUrl(getCompanyLogoUrl(company.website));
     setHasLogoLoadError(false);
   }, [company]);
@@ -106,38 +111,68 @@ export function CompanyProfile() {
   const currentCompany = company;
 
   async function saveCompany(nextValues: CompanyInput) {
-    await updateCompany(currentCompany.id, nextValues);
+    return updateCompany(currentCompany.id, nextValues);
   }
 
   const startEditingCompanyDetails = () => {
     setDraftCompanyDetails(companyDetails);
+    setCompanyDetailsError("");
+    setCompanyDetailsMessage("");
     setIsEditingCompanyDetails(true);
   };
 
   const cancelEditingCompanyDetails = () => {
     setDraftCompanyDetails(companyDetails);
+    setCompanyDetailsError("");
     setIsEditingCompanyDetails(false);
   };
 
   const saveCompanyDetails = async () => {
-    await saveCompany({
-      name: draftCompanyDetails.companyName.trim(),
-      industry: currentCompany.industry,
-      location: currentCompany.location,
-      status: currentCompany.status,
-      employeeRange: currentCompany.employeeRange,
-      city: draftCompanyDetails.city.trim(),
-      country: draftCompanyDetails.country.trim(),
-      contactAddress: draftCompanyDetails.contactAddress.trim(),
-      website: draftCompanyDetails.website.trim(),
-      contactPerson: contactDetails.contactPerson.trim(),
-      contactEmail: contactDetails.email.trim(),
-      phoneNumber: contactDetails.phoneNumber.trim(),
-    });
-    setCompanyDetails(draftCompanyDetails);
-    setCompanyLogoUrl(getCompanyLogoUrl(draftCompanyDetails.website));
-    setHasLogoLoadError(false);
-    setIsEditingCompanyDetails(false);
+    const trimmedCompanyName = draftCompanyDetails.companyName.trim();
+
+    if (!trimmedCompanyName) {
+      setCompanyDetailsError("Company name is required.");
+      return;
+    }
+
+    setIsSavingCompanyDetails(true);
+    setCompanyDetailsError("");
+    setCompanyDetailsMessage("");
+
+    try {
+      const updatedCompany = await saveCompany({
+        name: trimmedCompanyName,
+        industry: currentCompany.industry,
+        location: currentCompany.location,
+        status: currentCompany.status,
+        employeeRange: currentCompany.employeeRange,
+        city: draftCompanyDetails.city.trim(),
+        country: draftCompanyDetails.country.trim(),
+        contactAddress: draftCompanyDetails.contactAddress.trim(),
+        website: draftCompanyDetails.website.trim(),
+        contactPerson: contactDetails.contactPerson.trim(),
+        contactEmail: contactDetails.email.trim(),
+        phoneNumber: contactDetails.phoneNumber.trim(),
+      });
+      const nextCompanyDetails = {
+        companyName: updatedCompany.name,
+        city: updatedCompany.city,
+        country: updatedCompany.country,
+        contactAddress: updatedCompany.contactAddress,
+        website: updatedCompany.website,
+      };
+
+      setCompanyDetails(nextCompanyDetails);
+      setDraftCompanyDetails(nextCompanyDetails);
+      setCompanyLogoUrl(getCompanyLogoUrl(updatedCompany.website));
+      setHasLogoLoadError(false);
+      setCompanyDetailsMessage("Company details saved.");
+      setIsEditingCompanyDetails(false);
+    } catch {
+      // Error state is surfaced by the company provider.
+    } finally {
+      setIsSavingCompanyDetails(false);
+    }
   };
 
   const startEditingContactDetails = () => {
@@ -219,9 +254,14 @@ export function CompanyProfile() {
               <div className="detail-card-edit-actions">
                 {isEditingCompanyDetails ? (
                   <>
-                    <button type="button" className="detail-card-edit-button save" onClick={() => void saveCompanyDetails()}>
+                    <button
+                      type="button"
+                      className="detail-card-edit-button save"
+                      disabled={isSavingCompanyDetails}
+                      onClick={() => void saveCompanyDetails()}
+                    >
                       <Save size={14} />
-                      Save
+                      {isSavingCompanyDetails ? "Saving..." : "Save"}
                     </button>
                     <button type="button" className="detail-card-edit-button cancel" onClick={cancelEditingCompanyDetails}>
                       <X size={14} />
@@ -235,11 +275,14 @@ export function CompanyProfile() {
                   </button>
                 )}
               </div>
+              {companyDetailsError ? <p className="form-error">{companyDetailsError}</p> : null}
+              {companyDetailsMessage ? <p className="form-success">{companyDetailsMessage}</p> : null}
               <EditableDetailRow
                 label="Company Name"
                 value={isEditingCompanyDetails ? draftCompanyDetails.companyName : companyDetails.companyName}
                 isEditing={isEditingCompanyDetails}
                 onChange={(value) => setDraftCompanyDetails((current) => ({ ...current, companyName: value }))}
+                required
               />
               <EditableDetailRow
                 label="City"
@@ -361,11 +404,13 @@ function EditableDetailRow({
   isEditing,
   label,
   onChange,
+  required = false,
   value,
 }: {
   isEditing: boolean;
   label: string;
   onChange: (value: string) => void;
+  required?: boolean;
   value: string;
 }) {
   return (
@@ -378,6 +423,7 @@ function EditableDetailRow({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           aria-label={`${label} value`}
+          required={required}
         />
       ) : (
         <strong>{value}</strong>

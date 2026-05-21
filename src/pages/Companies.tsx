@@ -61,6 +61,19 @@ const emptyFilters: CompanyFilters = {
 
 const employeeRanges = ["1-50", "250 - 1k", "5K - 10K", "10K - 50K", "100K+"];
 const statuses: CompanyStatus[] = ["Active", "Prospect", "Inactive"];
+const countryOptions = [
+  "Australia",
+  "Belgium",
+  "Canada",
+  "Denmark",
+  "France",
+  "Germany",
+  "Indonesia",
+  "Italy",
+  "Thailand",
+  "United Kingdom",
+  "USA",
+];
 const euLocations = new Set(["Belgium", "Denmark", "France", "Germany", "Italy"]);
 
 function employeeRangeClassName(range: string) {
@@ -601,12 +614,18 @@ export function Companies() {
 
                 <label>
                   Location
-                  <input
+                  <select
                     aria-invalid={submitted && !companyInput.location.trim()}
                     onChange={(event) => setCompanyInput((current) => ({ ...current, location: event.target.value }))}
-                    placeholder="United Kingdom"
                     value={companyInput.location}
-                  />
+                  >
+                    <option value="">Select a country</option>
+                    {countryOptions.map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
 

@@ -3,13 +3,16 @@ import { Link } from "react-router-dom";
 import { DashboardSummary } from "../components/DashboardSummary";
 import { PriorityBadge } from "../components/PriorityBadge";
 import { StatusBadge } from "../components/StatusBadge";
+import { useAuth } from "../hooks/useAuth";
 import { useOrganization } from "../hooks/useOrganization";
 import { useTasks } from "../hooks/useTasks";
 import { formatDate, formatDateTime, isTaskOverdue } from "../utils/date";
 
 export function Dashboard() {
+  const { profile, user } = useAuth();
   const { getUserById, organization } = useOrganization();
   const { tasks, activity } = useTasks();
+  const displayName = profile?.name || user?.email?.split("@")[0] || "there";
   const recentTasks = [...tasks]
     .sort((first, second) => new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime())
     .slice(0, 5);
@@ -19,7 +22,7 @@ export function Dashboard() {
       <header className="page-header">
         <div>
           <p className="eyebrow">Forge command center</p>
-          <h2>Task Operations Dashboard</h2>
+          <h2>Welcome back, {displayName}</h2>
           <span>{organization?.name ?? "Forge Internal"} shared workspace</span>
         </div>
         <Link className="primary-button" to="/tasks">

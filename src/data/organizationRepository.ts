@@ -36,6 +36,10 @@ export type OrganizationInfo = {
   slug: string;
 };
 
+type UpdateProfileInput = {
+  name: string;
+};
+
 function mapProfile(row: ProfileRow): OrganizationProfile {
   return {
     userId: row.user_id,
@@ -125,5 +129,23 @@ export const organizationRepository = {
         role: profile.role,
       } satisfies User;
     });
+  },
+
+  async updateProfile(userId: string, input: UpdateProfileInput): Promise<OrganizationProfile> {
+    const client = requireSupabase();
+    const { data, error } = await client
+      .from("profiles")
+      .update({
+        name: input.name,
+      })
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return mapProfile(data as ProfileRow);
   },
 };

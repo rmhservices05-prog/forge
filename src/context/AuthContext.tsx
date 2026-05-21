@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { organizationRepository, type OrganizationProfile } from "../data/organizationRepository";
 import { requireSupabase, supabase } from "../lib/supabase";
@@ -10,6 +10,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const syncProfile = useCallback(async (nextSession: Session | null) => {
+    if (!nextSession?.user?.id) {
+      setProfile(null);
+      return null;
+    }
+
+    const nextProfile = await organizationRepository.waitForProfile(nextSession.user.id);
+    if (!nextProfile) {
+      throw new Error("Your account was created, but its Forge organization membership is not ready yet. Please wait a moment and sign in again.");
+    }
+
+    setProfile(nextProfile);
+    return nextProfile;
+  }, []);
+
   useEffect(() => {
     if (!supabase) {
       setError("Supabase is not configured. Add your Vite env vars to continue.");
@@ -18,20 +33,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let isMounted = true;
-
-    async function syncProfile(nextSession: Session | null) {
-      if (!nextSession?.user?.id) {
-        setProfile(null);
-        return;
-      }
-
-      const nextProfile = await organizationRepository.waitForProfile(nextSession.user.id);
-      if (!nextProfile) {
-        throw new Error("Your account was created, but its Forge organization membership is not ready yet. Please wait a moment and sign in again.");
-      }
-
-      setProfile(nextProfile);
-    }
 
     async function hydrate(nextSession: Session | null) {
       setLoading(true);
@@ -75,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [syncProfile]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -94,10 +95,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw signInError;
         }
       },
-      async signUp(email, password) {
+      async signUp(name, email, password) {
         setError("");
         const client = requireSupabase();
-        const { data, error: signUpError } = await client.auth.signUp({ email, password });
+        const trimmedName = name.trim();
+        if (!trimmedName) {
+          const nameError = new Error("Name is required to create an account.");
+          setError(nameError.message);
+          throw nameError;
+        }
+        const { data, error: signUpError } = await client.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              name: trimmedName,
+            },
+          },
+        });
 
         if (signUpError) {
           setError(signUpError.message);
@@ -111,6 +126,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       },
+      async updateProfile(name) {
+        setError("");
+        const trimmedName = name.trim();
+        if (!trimmedName) {
+          const nameError = new Error("Name is required.");
+          setError(nameError.message);
+          throw nameError;
+        }
+
+        const client = requireSupabase();
+        const currentUser = session?.user;
+
+        if (!currentUser?.id) {
+          const sessionError = new Error("You need to be signed in to update your profile.");
+          setError(sessionError.message);
+          throw sessionError;
+        }
+
+        const { error: authUpdateError } = await client.auth.updateUser({
+          data: {
+            ...currentUser.user_metadata,
+            name: trimmedName,
+          },
+        });
+
+        if (authUpdateError) {
+          setError(authUpdateError.message);
+          throw authUpdateError;
+        }
+
+        await organizationRepository.updateProfile(currentUser.id, { name: trimmedName });
+        await syncProfile(session);
+      },
+      async refreshProfile() {
+        setError("");
+        await syncProfile(session);
+      },
       async signOut() {
         setError("");
         const client = requireSupabase();
@@ -122,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
-    [error, loading, profile, session],
+    [error, loading, profile, session, syncProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
