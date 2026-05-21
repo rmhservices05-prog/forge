@@ -1,11 +1,22 @@
-create table if not exists public.organizations (
+drop trigger if exists on_auth_user_created on auth.users;
+drop function if exists public.handle_new_user();
+
+drop table if exists public.organization_preferences cascade;
+drop table if exists public.task_comments cascade;
+drop table if exists public.task_subtasks cascade;
+drop table if exists public.task_activity cascade;
+drop table if exists public.tasks cascade;
+drop table if exists public.profiles cascade;
+drop table if exists public.organizations cascade;
+
+create table public.organizations (
   id text primary key,
   name text not null,
   slug text not null unique,
   created_at timestamptz not null default timezone('utc', now())
 );
 
-create table if not exists public.profiles (
+create table public.profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   organization_id text not null references public.organizations (id) on delete cascade,
   name text not null,
@@ -14,7 +25,7 @@ create table if not exists public.profiles (
   created_at timestamptz not null default timezone('utc', now())
 );
 
-create table if not exists public.tasks (
+create table public.tasks (
   id text primary key,
   organization_id text not null references public.organizations (id) on delete cascade,
   title text not null,
@@ -27,7 +38,7 @@ create table if not exists public.tasks (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
-create table if not exists public.task_activity (
+create table public.task_activity (
   id text primary key,
   organization_id text not null references public.organizations (id) on delete cascade,
   task_id text not null references public.tasks (id) on delete cascade,
@@ -36,7 +47,7 @@ create table if not exists public.task_activity (
   created_at timestamptz not null default timezone('utc', now())
 );
 
-create table if not exists public.task_subtasks (
+create table public.task_subtasks (
   id text primary key,
   organization_id text not null references public.organizations (id) on delete cascade,
   task_id text not null references public.tasks (id) on delete cascade,
@@ -45,7 +56,7 @@ create table if not exists public.task_subtasks (
   created_at timestamptz not null default timezone('utc', now())
 );
 
-create table if not exists public.task_comments (
+create table public.task_comments (
   id text primary key,
   organization_id text not null references public.organizations (id) on delete cascade,
   task_id text not null references public.tasks (id) on delete cascade,
@@ -53,11 +64,84 @@ create table if not exists public.task_comments (
   created_at timestamptz not null default timezone('utc', now())
 );
 
-create table if not exists public.organization_preferences (
+create table public.organization_preferences (
   organization_id text primary key references public.organizations (id) on delete cascade,
   project_icon text,
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+insert into public.organizations (id, name, slug)
+values ('forge-internal', 'Forge Internal', 'forge-internal')
+on conflict (id) do update
+set name = excluded.name,
+    slug = excluded.slug;
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  derived_name text;
+begin
+  derived_name := coalesce(
+    nullif(new.raw_user_meta_data ->> 'name', ''),
+    nullif(split_part(new.email, '@', 1), ''),
+    'Forge User'
+  );
+
+  insert into public.profiles (user_id, organization_id, name, email, role)
+  values (
+    new.id,
+    'forge-internal',
+    initcap(replace(replace(replace(derived_name, '.', ' '), '_', ' '), '-', ' ')),
+    coalesce(new.email, ''),
+    'Operator'
+  )
+  on conflict (user_id) do update
+  set organization_id = excluded.organization_id,
+      name = excluded.name,
+      email = excluded.email;
+
+  return new;
+end;
+$$;
+
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute procedure public.handle_new_user();
+
+insert into public.profiles (user_id, organization_id, name, email, role)
+select
+  users.id,
+  'forge-internal',
+  initcap(
+    replace(
+      replace(
+        replace(
+          coalesce(
+            nullif(users.raw_user_meta_data ->> 'name', ''),
+            nullif(split_part(users.email, '@', 1), ''),
+            'Forge User'
+          ),
+          '.',
+          ' '
+        ),
+        '_',
+        ' '
+      ),
+      '-',
+      ' '
+    )
+  ),
+  coalesce(users.email, ''),
+  'Operator'
+from auth.users as users
+on conflict (user_id) do update
+set organization_id = excluded.organization_id,
+    name = excluded.name,
+    email = excluded.email;
 
 alter table public.organizations enable row level security;
 alter table public.profiles enable row level security;
@@ -67,39 +151,22 @@ alter table public.task_subtasks enable row level security;
 alter table public.task_comments enable row level security;
 alter table public.organization_preferences enable row level security;
 
-drop policy if exists "organizations select for authenticated users" on public.organizations;
-create policy "organizations select for authenticated users" on public.organizations
-for select
-using (auth.role() = 'authenticated');
-
-drop policy if exists "organizations upsert default org" on public.organizations;
-create policy "organizations upsert default org" on public.organizations
-for insert
-with check (auth.role() = 'authenticated' and id = 'forge-internal');
-
-drop policy if exists "organizations update default org" on public.organizations;
-create policy "organizations update default org" on public.organizations
-for update
-using (auth.role() = 'authenticated' and id = 'forge-internal')
-with check (auth.role() = 'authenticated' and id = 'forge-internal');
-
-drop policy if exists "profiles read same organization" on public.profiles;
-create policy "profiles read same organization" on public.profiles
+drop policy if exists "organizations read same organization" on public.organizations;
+create policy "organizations read same organization" on public.organizations
 for select
 using (
   exists (
     select 1
     from public.profiles current_profile
     where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = profiles.organization_id
+      and current_profile.organization_id = organizations.id
   )
-  or user_id = auth.uid()
 );
 
-drop policy if exists "profiles manage self" on public.profiles;
-create policy "profiles manage self" on public.profiles
-for insert
-with check (user_id = auth.uid());
+drop policy if exists "profiles read same organization" on public.profiles;
+create policy "profiles read same organization" on public.profiles
+for select
+using (auth.role() = 'authenticated');
 
 drop policy if exists "profiles update self" on public.profiles;
 create policy "profiles update self" on public.profiles

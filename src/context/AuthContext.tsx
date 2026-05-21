@@ -19,20 +19,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let isMounted = true;
 
-    async function syncMembership(nextSession: Session | null) {
-      if (!nextSession?.user.email) {
+    async function syncProfile(nextSession: Session | null) {
+      if (!nextSession?.user?.id) {
         setProfile(null);
         return;
       }
 
-      const nextProfile = await organizationRepository.ensureMembership(
-        nextSession.user.id,
-        nextSession.user.email,
-      );
+      const nextProfile = await organizationRepository.waitForProfile(nextSession.user.id);
+      if (!nextProfile) {
+        throw new Error("Your account was created, but its Forge organization membership is not ready yet. Please wait a moment and sign in again.");
+      }
+
       setProfile(nextProfile);
     }
 
-    void supabase.auth.getSession().then(async ({ data, error: sessionError }) => {
+    async function hydrate(nextSession: Session | null) {
+      setLoading(true);
+      setError("");
+      setSession(nextSession);
+
+      try {
+        await syncProfile(nextSession);
+      } catch (profileError) {
+        setError(profileError instanceof Error ? profileError.message : "Unable to load organization profile");
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void supabase.auth.getSession().then(({ data, error: sessionError }) => {
       if (!isMounted) {
         return;
       }
@@ -41,13 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(sessionError.message);
       }
 
-      setSession(data.session ?? null);
-      try {
-        await syncMembership(data.session ?? null);
-      } catch (membershipError) {
-        setError(membershipError instanceof Error ? membershipError.message : "Unable to join organization");
-      }
-      setLoading(false);
+      void hydrate(data.session ?? null);
     });
 
     const {
@@ -57,16 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      setLoading(true);
-      void syncMembership(nextSession)
-        .catch((membershipError) => {
-          setError(membershipError instanceof Error ? membershipError.message : "Unable to join organization");
-        })
-        .finally(() => {
-          setSession(nextSession);
-          setLoading(false);
-        });
-      setError("");
+      void hydrate(nextSession);
     });
 
     return () => {
@@ -95,11 +97,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async signUp(email, password) {
         setError("");
         const client = requireSupabase();
-        const { error: signUpError } = await client.auth.signUp({ email, password });
+        const { data, error: signUpError } = await client.auth.signUp({ email, password });
 
         if (signUpError) {
           setError(signUpError.message);
           throw signUpError;
+        }
+
+        if (data.session?.user?.id) {
+          const nextProfile = await organizationRepository.waitForProfile(data.session.user.id);
+          if (!nextProfile) {
+            throw new Error("Your account was created, but the organization profile has not appeared yet. Try signing in again in a moment.");
+          }
         }
       },
       async signOut() {

@@ -21,7 +21,9 @@ export function AuthPage() {
         await signIn(email.trim(), password);
       } else {
         await signUp(email.trim(), password);
-        setMessage("Account created. If email confirmations are enabled in Supabase, confirm your email before signing in.");
+        setMessage(
+          "Account created. Forge automatically assigns new users to the internal organization during signup. If email confirmation is enabled in Supabase, confirm your email before signing in.",
+        );
       }
     } catch {
       // Error state is surfaced from the auth context.
