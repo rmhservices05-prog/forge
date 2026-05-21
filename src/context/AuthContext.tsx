@@ -4,6 +4,18 @@ import { organizationRepository, type OrganizationProfile } from "../data/organi
 import { requireSupabase, supabase } from "../lib/supabase";
 import { AuthContext, type AuthContextValue } from "./authContextValue";
 
+function toAuthErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "Authentication failed. Please try again.";
+  }
+
+  if (error.message === "Failed to fetch") {
+    return "Cannot reach Supabase from this deployment. Verify VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY in Render and ensure Supabase project API/Auth are active.";
+  }
+
+  return error.message;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<OrganizationProfile | null>(null);
@@ -91,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error: signInError } = await client.auth.signInWithPassword({ email, password });
 
         if (signInError) {
-          setError(signInError.message);
+          setError(toAuthErrorMessage(signInError));
           throw signInError;
         }
       },
@@ -115,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
         if (signUpError) {
-          setError(signUpError.message);
+          setError(toAuthErrorMessage(signUpError));
           throw signUpError;
         }
 
