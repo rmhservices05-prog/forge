@@ -7,6 +7,26 @@ export type User = {
   role: UserRole;
 };
 
+export type CompanyStatus = "Active" | "Prospect" | "Inactive";
+
+export type Company = {
+  id: number;
+  name: string;
+  industry: string;
+  location: string;
+  status: CompanyStatus;
+  lastInteraction: string;
+  employeeRange: string;
+  logoColor: string;
+  city: string;
+  country: string;
+  contactAddress: string;
+  website: string;
+  contactPerson: string;
+  contactEmail: string;
+  phoneNumber: string;
+};
+
 export type TaskStatus = "To Do" | "In Progress" | "Done";
 
 export type TaskPriority = "Low" | "Medium" | "High" | "Critical";

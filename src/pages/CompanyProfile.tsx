@@ -3,18 +3,19 @@ import {
   Building2,
   CheckCircle2,
   CircleHelp,
-  PencilLine,
   FileText,
   MinusCircle,
+  PencilLine,
   PlusCircle,
   Save,
-  X,
   UserRound,
+  X,
 } from "lucide-react";
-import { type ReactNode } from "react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { initials, initialCompanies } from "../data/companies";
+import type { CompanyInput } from "../data/companyRepository";
+import { initials } from "../data/companies";
+import { useCompanies } from "../hooks/useCompanies";
 
 function resolveWebsiteDomain(website: string) {
   const trimmed = website.trim();
@@ -42,22 +43,23 @@ function getCompanyLogoUrl(website: string) {
 
 export function CompanyProfile() {
   const { companyId } = useParams();
-  const company = useMemo(() => initialCompanies.find((item) => String(item.id) === companyId), [companyId]);
+  const { companies, loading, error, updateCompany } = useCompanies();
+  const company = useMemo(() => companies.find((item) => String(item.id) === companyId), [companies, companyId]);
   const [companyDetails, setCompanyDetails] = useState({
     companyName: "",
-    city: "Paris",
-    country: "France",
-    contactAddress: "174 Quai de Jemmapes",
-    website: "bb.agency",
+    city: "",
+    country: "",
+    contactAddress: "",
+    website: "",
   });
   const [draftCompanyDetails, setDraftCompanyDetails] = useState(companyDetails);
   const [isEditingCompanyDetails, setIsEditingCompanyDetails] = useState(false);
-  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(getCompanyLogoUrl(companyDetails.website));
+  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [hasLogoLoadError, setHasLogoLoadError] = useState(false);
   const [contactDetails, setContactDetails] = useState({
-    contactPerson: "Ana Belic",
-    email: "ana@bb.agency",
-    phoneNumber: "+385 99 7691 238",
+    contactPerson: "",
+    email: "",
+    phoneNumber: "",
   });
   const [draftContactDetails, setDraftContactDetails] = useState(contactDetails);
   const [isEditingContactDetails, setIsEditingContactDetails] = useState(false);
@@ -67,12 +69,44 @@ export function CompanyProfile() {
       return;
     }
 
-    setCompanyDetails((current) => ({ ...current, companyName: company.name }));
-    setDraftCompanyDetails((current) => ({ ...current, companyName: company.name }));
+    const nextCompanyDetails = {
+      companyName: company.name,
+      city: company.city,
+      country: company.country,
+      contactAddress: company.contactAddress,
+      website: company.website,
+    };
+    const nextContactDetails = {
+      contactPerson: company.contactPerson,
+      email: company.contactEmail,
+      phoneNumber: company.phoneNumber,
+    };
+
+    setCompanyDetails(nextCompanyDetails);
+    setDraftCompanyDetails(nextCompanyDetails);
+    setContactDetails(nextContactDetails);
+    setDraftContactDetails(nextContactDetails);
+    setCompanyLogoUrl(getCompanyLogoUrl(company.website));
+    setHasLogoLoadError(false);
   }, [company]);
+
+  if (loading) {
+    return (
+      <div className="centered-state">
+        <h2>Loading company...</h2>
+        <p>Fetching the latest company record from Supabase.</p>
+      </div>
+    );
+  }
 
   if (!company) {
     return <Navigate to="/companies" replace />;
+  }
+
+  const currentCompany = company;
+
+  async function saveCompany(nextValues: CompanyInput) {
+    await updateCompany(currentCompany.id, nextValues);
   }
 
   const startEditingCompanyDetails = () => {
@@ -85,7 +119,21 @@ export function CompanyProfile() {
     setIsEditingCompanyDetails(false);
   };
 
-  const saveCompanyDetails = () => {
+  const saveCompanyDetails = async () => {
+    await saveCompany({
+      name: draftCompanyDetails.companyName.trim(),
+      industry: currentCompany.industry,
+      location: currentCompany.location,
+      status: currentCompany.status,
+      employeeRange: currentCompany.employeeRange,
+      city: draftCompanyDetails.city.trim(),
+      country: draftCompanyDetails.country.trim(),
+      contactAddress: draftCompanyDetails.contactAddress.trim(),
+      website: draftCompanyDetails.website.trim(),
+      contactPerson: contactDetails.contactPerson.trim(),
+      contactEmail: contactDetails.email.trim(),
+      phoneNumber: contactDetails.phoneNumber.trim(),
+    });
     setCompanyDetails(draftCompanyDetails);
     setCompanyLogoUrl(getCompanyLogoUrl(draftCompanyDetails.website));
     setHasLogoLoadError(false);
@@ -102,13 +150,28 @@ export function CompanyProfile() {
     setIsEditingContactDetails(false);
   };
 
-  const saveContactDetails = () => {
+  const saveContactDetails = async () => {
+    await saveCompany({
+      name: companyDetails.companyName.trim(),
+      industry: currentCompany.industry,
+      location: currentCompany.location,
+      status: currentCompany.status,
+      employeeRange: currentCompany.employeeRange,
+      city: companyDetails.city.trim(),
+      country: companyDetails.country.trim(),
+      contactAddress: companyDetails.contactAddress.trim(),
+      website: companyDetails.website.trim(),
+      contactPerson: draftContactDetails.contactPerson.trim(),
+      contactEmail: draftContactDetails.email.trim(),
+      phoneNumber: draftContactDetails.phoneNumber.trim(),
+    });
     setContactDetails(draftContactDetails);
     setIsEditingContactDetails(false);
   };
 
   return (
     <div className="company-profile-page">
+      {error ? <div className="inline-alert error">{error}</div> : null}
       <div className="company-profile-shell">
         <nav className="company-profile-breadcrumb" aria-label="Breadcrumb">
           <Link to="/companies">
@@ -120,20 +183,25 @@ export function CompanyProfile() {
         </nav>
 
         <header className="company-profile-header">
-          <span className={`company-profile-logo logo-${company.logoColor}`} aria-hidden="true">
+          <span className={`company-profile-logo logo-${currentCompany.logoColor}`} aria-hidden="true">
             {companyLogoUrl && !hasLogoLoadError ? (
-              <img src={companyLogoUrl} alt={`${companyDetails.companyName} logo`} className="company-profile-logo-image" onError={() => setHasLogoLoadError(true)} />
+              <img
+                src={companyLogoUrl}
+                alt={`${companyDetails.companyName} logo`}
+                className="company-profile-logo-image"
+                onError={() => setHasLogoLoadError(true)}
+              />
             ) : (
               <>
                 <Building2 size={34} />
-                <span>{initials(companyDetails.companyName || company.name)}</span>
+                <span>{initials(companyDetails.companyName || currentCompany.name)}</span>
               </>
             )}
           </span>
 
           <div className="company-profile-title-block">
             <div className="company-profile-title-row">
-              <h2>{company.name}</h2>
+              <h2>{companyDetails.companyName || currentCompany.name}</h2>
               <CheckCircle2 size={20} aria-label="Verified profile" />
             </div>
             <div className="company-profile-actions" aria-label="Company actions">
@@ -151,7 +219,7 @@ export function CompanyProfile() {
               <div className="detail-card-edit-actions">
                 {isEditingCompanyDetails ? (
                   <>
-                    <button type="button" className="detail-card-edit-button save" onClick={saveCompanyDetails}>
+                    <button type="button" className="detail-card-edit-button save" onClick={() => void saveCompanyDetails()}>
                       <Save size={14} />
                       Save
                     </button>
@@ -203,7 +271,7 @@ export function CompanyProfile() {
               <div className="detail-card-edit-actions">
                 {isEditingContactDetails ? (
                   <>
-                    <button type="button" className="detail-card-edit-button save" onClick={saveContactDetails}>
+                    <button type="button" className="detail-card-edit-button save" onClick={() => void saveContactDetails()}>
                       <Save size={14} />
                       Save
                     </button>
@@ -249,7 +317,7 @@ export function CompanyProfile() {
             </div>
 
             <section className="company-tab-panel overview" aria-live="polite">
-              <OverviewPanel companyName={company.name} />
+              <OverviewPanel companyName={companyDetails.companyName || currentCompany.name} />
             </section>
           </main>
         </div>
@@ -286,15 +354,6 @@ function DetailCard({ children, icon, title }: { children: ReactNode; icon: Reac
         </div>
       ) : null}
     </section>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="company-detail-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
   );
 }
 

@@ -17,18 +17,13 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { type Company, type CompanyStatus, initials, initialCompanies } from "../data/companies";
+import { type CompanyInput } from "../data/companyRepository";
+import { initials } from "../data/companies";
+import { useCompanies } from "../hooks/useCompanies";
+import type { CompanyStatus } from "../types";
 
 type CompanyView = "all" | "uk" | "eu" | "us";
 type TableDensity = "comfortable" | "compact";
-
-type CompanyInput = {
-  name: string;
-  industry: string;
-  location: string;
-  status: CompanyStatus;
-  employeeRange: string;
-};
 
 type CompanyFilters = {
   status: "" | CompanyStatus;
@@ -49,6 +44,13 @@ const emptyCompanyInput: CompanyInput = {
   location: "",
   status: "Prospect",
   employeeRange: "1-50",
+  city: "",
+  country: "",
+  contactAddress: "",
+  website: "",
+  contactPerson: "",
+  contactEmail: "",
+  phoneNumber: "",
 };
 
 const emptyFilters: CompanyFilters = {
@@ -56,23 +58,6 @@ const emptyFilters: CompanyFilters = {
   industry: "",
   employeeRange: "",
 };
-
-const logoColors = [
-  "purple",
-  "blue",
-  "mint",
-  "orange",
-  "violet",
-  "black",
-  "emerald",
-  "charcoal",
-  "gold",
-  "sky",
-  "olive",
-  "forest",
-  "slate",
-  "pink",
-];
 
 const employeeRanges = ["1-50", "250 - 1k", "5K - 10K", "10K - 50K", "100K+"];
 const statuses: CompanyStatus[] = ["Active", "Prospect", "Inactive"];
@@ -95,7 +80,7 @@ function employeeRangeClassName(range: string) {
 
 export function Companies() {
   const navigate = useNavigate();
-  const [companies, setCompanies] = useState<Company[]>(initialCompanies);
+  const { companies, loading, error, createCompany, deleteCompany } = useCompanies();
   const [activeView, setActiveView] = useState<CompanyView>("all");
   const [query, setQuery] = useState("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc" | null>(null);
@@ -195,7 +180,7 @@ export function Companies() {
     setIsAddCompanyOpen(true);
   }
 
-  function handleAddCompany(event: FormEvent<HTMLFormElement>) {
+  async function handleAddCompany(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitted(true);
 
@@ -203,28 +188,29 @@ export function Companies() {
       return;
     }
 
-    const nextCompany: Company = {
-      id: Math.max(...companies.map((company) => company.id), 0) + 1,
-      name: companyInput.name.trim(),
-      industry: companyInput.industry.trim(),
-      location: companyInput.location.trim(),
-      status: companyInput.status,
-      lastInteraction: "Just now",
-      employeeRange: companyInput.employeeRange,
-      logoColor: logoColors[companies.length % logoColors.length],
-    };
-
-    setCompanies((currentCompanies) => [...currentCompanies, nextCompany]);
-    setActiveView("all");
-    setQuery("");
-    setCompanyInput(emptyCompanyInput);
-    setSubmitted(false);
-    setIsAddCompanyOpen(false);
-  }
-
-  function deleteCompany(companyId: number) {
-    setCompanies((currentCompanies) => currentCompanies.filter((company) => company.id !== companyId));
-    setSelectedCompanyIds((current) => current.filter((id) => id !== companyId));
+    try {
+      await createCompany({
+        name: companyInput.name.trim(),
+        industry: companyInput.industry.trim(),
+        location: companyInput.location.trim(),
+        status: companyInput.status,
+        employeeRange: companyInput.employeeRange,
+        city: companyInput.location.trim(),
+        country: companyInput.location.trim(),
+        contactAddress: "",
+        website: "",
+        contactPerson: "",
+        contactEmail: "",
+        phoneNumber: "",
+      });
+      setActiveView("all");
+      setQuery("");
+      setCompanyInput(emptyCompanyInput);
+      setSubmitted(false);
+      setIsAddCompanyOpen(false);
+    } catch {
+      // Error is surfaced by the provider.
+    }
   }
 
   function toggleCompanySelection(companyId: number) {
@@ -242,13 +228,12 @@ export function Companies() {
     });
   }
 
-  function deleteSelectedCompanies() {
+  async function deleteSelectedCompanies() {
     if (!hasSelectedCompanies) {
       return;
     }
 
-    const selectedIds = new Set(selectedCompanyIds);
-    setCompanies((currentCompanies) => currentCompanies.filter((company) => !selectedIds.has(company.id)));
+    await Promise.all(selectedCompanyIds.map((companyId) => deleteCompany(companyId)));
     setSelectedCompanyIds([]);
   }
 
@@ -256,8 +241,18 @@ export function Companies() {
     navigate(`/companies/${companyId}`);
   }
 
+  if (loading) {
+    return (
+      <div className="centered-state">
+        <h2>Loading companies...</h2>
+        <p>Pulling your CRM records from Supabase.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="companies-page">
+      {error ? <div className="inline-alert error">{error}</div> : null}
       <section className="companies-card" aria-label="Companies CRM list">
         <header className="companies-header">
           <div className="companies-title-row">
@@ -400,7 +395,7 @@ export function Companies() {
               <button
                 className="companies-toolbar-button companies-danger-button"
                 disabled={!hasSelectedCompanies}
-                onClick={deleteSelectedCompanies}
+                onClick={() => void deleteSelectedCompanies()}
                 type="button"
               >
                 <Trash2 size={17} />
@@ -536,7 +531,7 @@ export function Companies() {
                         className="companies-row-action"
                         onClick={(event) => {
                           event.stopPropagation();
-                          deleteCompany(company.id);
+                          void deleteCompany(company.id);
                         }}
                         type="button"
                         aria-label={`Delete ${company.name}`}
