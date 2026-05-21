@@ -45,26 +45,47 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
           throw new Error("You must be signed in to create a company.");
         }
 
-        const company = await companyRepository.createCompany(profile.organizationId, input, companies.length);
-        setCompanies((current) => [...current, company]);
-        return company;
+        setError("");
+
+        try {
+          const company = await companyRepository.createCompany(profile.organizationId, input, companies.length);
+          setCompanies((current) => [...current, company]);
+          return company;
+        } catch (createError) {
+          setError(createError instanceof Error ? createError.message : "Unable to create company");
+          throw createError;
+        }
       },
       async updateCompany(companyId, input) {
         if (!profile) {
           throw new Error("You must be signed in to update a company.");
         }
 
-        const company = await companyRepository.updateCompany(profile.organizationId, companyId, input);
-        setCompanies((current) => current.map((item) => (item.id === companyId ? company : item)));
-        return company;
+        setError("");
+
+        try {
+          const company = await companyRepository.updateCompany(profile.organizationId, companyId, input);
+          setCompanies((current) => current.map((item) => (item.id === companyId ? company : item)));
+          return company;
+        } catch (updateError) {
+          setError(updateError instanceof Error ? updateError.message : "Unable to update company");
+          throw updateError;
+        }
       },
       async deleteCompany(companyId) {
         if (!profile) {
           throw new Error("You must be signed in to delete a company.");
         }
 
-        await companyRepository.deleteCompany(profile.organizationId, companyId);
-        setCompanies((current) => current.filter((item) => item.id !== companyId));
+        setError("");
+
+        try {
+          await companyRepository.deleteCompany(profile.organizationId, companyId);
+          setCompanies((current) => current.filter((item) => item.id !== companyId));
+        } catch (deleteError) {
+          setError(deleteError instanceof Error ? deleteError.message : "Unable to delete company");
+          throw deleteError;
+        }
       },
     }),
     [companies, error, loading, profile, refresh],

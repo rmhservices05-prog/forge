@@ -96,16 +96,30 @@ async function ensureSeedCompanies(organizationId: string): Promise<void> {
     return;
   }
 
-  const rows = initialCompanies.map((company, index) => ({
-    id: company.id,
-    ...toInsertRow(organizationId, company, index),
-  }));
+  const rows = initialCompanies.map((company, index) => toInsertRow(organizationId, company, index));
 
   const { error: insertError } = await client.from("companies").insert(rows);
 
   if (insertError) {
     throw insertError;
   }
+}
+
+async function getNextCompanyId(organizationId: string): Promise<number> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("companies")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return typeof data?.id === "number" ? data.id + 1 : 1;
 }
 
 export const companyRepository = {
@@ -128,9 +142,13 @@ export const companyRepository = {
 
   async createCompany(organizationId: string, input: CompanyInput, nextIndex: number): Promise<Company> {
     const client = requireSupabase();
+    const nextId = await getNextCompanyId(organizationId);
     const { data, error } = await client
       .from("companies")
-      .insert(toInsertRow(organizationId, input, nextIndex))
+      .insert({
+        id: nextId,
+        ...toInsertRow(organizationId, input, nextIndex),
+      })
       .select("*")
       .single();
 

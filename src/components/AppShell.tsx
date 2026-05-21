@@ -1,20 +1,17 @@
 import { BarChart3, Building2, ClipboardList, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
-import { useOrganization } from "../hooks/useOrganization";
 
 const navigationItems = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { to: "/companies", label: "Companies", icon: Building2 },
   { to: "/tasks", label: "Tasks", icon: ClipboardList },
-  { to: "/settings", label: "Team", icon: Users },
 ];
+const teamNavigationItem = { to: "/settings", label: "Team", icon: Users };
 
 export function AppShell() {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { user, signOut } = useAuth();
-  const { organization } = useOrganization();
+  const TeamIcon = teamNavigationItem.icon;
 
   return (
     <div className={`app-shell ${isCollapsed ? "sidebar-collapsed" : ""}`}>
@@ -40,14 +37,13 @@ export function AppShell() {
             );
           })}
         </nav>
+        <nav className="nav-list nav-list-bottom" aria-label="Sidebar settings">
+          <NavLink to={teamNavigationItem.to} className="nav-link">
+            <TeamIcon size={18} />
+            <span className="nav-label">{teamNavigationItem.label}</span>
+          </NavLink>
+        </nav>
 
-        <div className="sidebar-note">
-          <p>{organization?.name ?? "Forge Internal"}</p>
-          <span>{user?.email ?? "Signed in"} is connected to the shared internal workspace.</span>
-          <button className="secondary-button sidebar-signout-button" onClick={() => void signOut()} type="button">
-            Sign out
-          </button>
-        </div>
       </aside>
 
       <main className="main-panel">
