@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   CircleHelp,
   FileText,
+  History,
   MinusCircle,
   PencilLine,
   PlusCircle,
@@ -13,38 +14,21 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { CompanyLogoBadge } from "../components/CompanyLogoBadge";
 import type { CompanyInput } from "../data/companyRepository";
-import { initials } from "../data/companies";
+import { useAuth } from "../hooks/useAuth";
 import { useCompanies } from "../hooks/useCompanies";
-
-function resolveWebsiteDomain(website: string) {
-  const trimmed = website.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  try {
-    const normalized = trimmed.includes("://") ? trimmed : `https://${trimmed}`;
-    const parsed = new URL(normalized);
-    return parsed.hostname.replace(/^www\./, "");
-  } catch {
-    return null;
-  }
-}
-
-function getCompanyLogoUrl(website: string) {
-  const domain = resolveWebsiteDomain(website);
-  if (!domain) {
-    return null;
-  }
-
-  return `https://logo.clearbit.com/${domain}`;
-}
+import type { CompanyLog } from "../types";
 
 export function CompanyProfile() {
   const { companyId } = useParams();
-  const { companies, loading, error, updateCompany } = useCompanies();
+  const { profile } = useAuth();
+  const { companies, companyLogs, loading, error, updateCompany, createCompanyLog } = useCompanies();
   const company = useMemo(() => companies.find((item) => String(item.id) === companyId), [companies, companyId]);
+  const logs = useMemo(
+    () => companyLogs.filter((item) => String(item.companyId) === companyId),
+    [companyId, companyLogs],
+  );
   const [companyDetails, setCompanyDetails] = useState({
     companyName: "",
     city: "",
@@ -57,8 +41,6 @@ export function CompanyProfile() {
   const [companyDetailsError, setCompanyDetailsError] = useState("");
   const [companyDetailsMessage, setCompanyDetailsMessage] = useState("");
   const [isSavingCompanyDetails, setIsSavingCompanyDetails] = useState(false);
-  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
-  const [hasLogoLoadError, setHasLogoLoadError] = useState(false);
   const [contactDetails, setContactDetails] = useState({
     contactPerson: "",
     email: "",
@@ -66,6 +48,11 @@ export function CompanyProfile() {
   });
   const [draftContactDetails, setDraftContactDetails] = useState(contactDetails);
   const [isEditingContactDetails, setIsEditingContactDetails] = useState(false);
+  const [draftLogBody, setDraftLogBody] = useState("");
+  const [draftLogDate, setDraftLogDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [logError, setLogError] = useState("");
+  const [logMessage, setLogMessage] = useState("");
+  const [isSavingLog, setIsSavingLog] = useState(false);
 
   useEffect(() => {
     if (!company) {
@@ -91,8 +78,10 @@ export function CompanyProfile() {
     setDraftContactDetails(nextContactDetails);
     setCompanyDetailsError("");
     setCompanyDetailsMessage("");
-    setCompanyLogoUrl(getCompanyLogoUrl(company.website));
-    setHasLogoLoadError(false);
+    setDraftLogBody("");
+    setDraftLogDate(new Date().toISOString().slice(0, 10));
+    setLogError("");
+    setLogMessage("");
   }, [company]);
 
   if (loading) {
@@ -164,8 +153,6 @@ export function CompanyProfile() {
 
       setCompanyDetails(nextCompanyDetails);
       setDraftCompanyDetails(nextCompanyDetails);
-      setCompanyLogoUrl(getCompanyLogoUrl(updatedCompany.website));
-      setHasLogoLoadError(false);
       setCompanyDetailsMessage("Company details saved.");
       setIsEditingCompanyDetails(false);
     } catch {
@@ -204,6 +191,40 @@ export function CompanyProfile() {
     setIsEditingContactDetails(false);
   };
 
+  const saveLog = async () => {
+    const trimmedBody = draftLogBody.trim();
+
+    if (!trimmedBody) {
+      setLogError("Log details are required.");
+      return;
+    }
+
+    if (!draftLogDate) {
+      setLogError("Choose a log date.");
+      return;
+    }
+
+    setIsSavingLog(true);
+    setLogError("");
+    setLogMessage("");
+
+    try {
+      await createCompanyLog({
+        companyId: currentCompany.id,
+        authorName: profile?.name ?? "Forge User",
+        body: trimmedBody,
+        loggedOn: draftLogDate,
+      });
+      setDraftLogBody("");
+      setDraftLogDate(new Date().toISOString().slice(0, 10));
+      setLogMessage("Log added.");
+    } catch {
+      // Error state is surfaced by the company provider.
+    } finally {
+      setIsSavingLog(false);
+    }
+  };
+
   return (
     <div className="company-profile-page">
       {error ? <div className="inline-alert error">{error}</div> : null}
@@ -218,21 +239,14 @@ export function CompanyProfile() {
         </nav>
 
         <header className="company-profile-header">
-          <span className={`company-profile-logo logo-${currentCompany.logoColor}`} aria-hidden="true">
-            {companyLogoUrl && !hasLogoLoadError ? (
-              <img
-                src={companyLogoUrl}
-                alt={`${companyDetails.companyName} logo`}
-                className="company-profile-logo-image"
-                onError={() => setHasLogoLoadError(true)}
-              />
-            ) : (
-              <>
-                <Building2 size={34} />
-                <span>{initials(companyDetails.companyName || currentCompany.name)}</span>
-              </>
-            )}
-          </span>
+          <CompanyLogoBadge
+            color={currentCompany.logoColor}
+            fallbackIconSize={34}
+            imageClassName="company-profile-logo-image"
+            name={companyDetails.companyName || currentCompany.name}
+            website={companyDetails.website}
+            wrapperClassName="company-profile-logo"
+          />
 
           <div className="company-profile-title-block">
             <div className="company-profile-title-row">
@@ -307,6 +321,7 @@ export function CompanyProfile() {
                 value={isEditingCompanyDetails ? draftCompanyDetails.website : companyDetails.website}
                 isEditing={isEditingCompanyDetails}
                 onChange={(value) => setDraftCompanyDetails((current) => ({ ...current, website: value }))}
+                valueType="website"
               />
             </DetailCard>
 
@@ -341,6 +356,7 @@ export function CompanyProfile() {
                 value={isEditingContactDetails ? draftContactDetails.email : contactDetails.email}
                 isEditing={isEditingContactDetails}
                 onChange={(value) => setDraftContactDetails((current) => ({ ...current, email: value }))}
+                valueType="email"
               />
               <EditableDetailRow
                 label="Phone Number"
@@ -360,7 +376,18 @@ export function CompanyProfile() {
             </div>
 
             <section className="company-tab-panel overview" aria-live="polite">
-              <OverviewPanel companyName={companyDetails.companyName || currentCompany.name} />
+              <OverviewPanel
+                companyName={companyDetails.companyName || currentCompany.name}
+                draftDate={draftLogDate}
+                draftMessage={draftLogBody}
+                error={logError}
+                infoMessage={logMessage}
+                isSaving={isSavingLog}
+                logs={logs}
+                onDateChange={setDraftLogDate}
+                onMessageChange={setDraftLogBody}
+                onSubmit={() => void saveLog()}
+              />
             </section>
           </main>
         </div>
@@ -406,13 +433,26 @@ function EditableDetailRow({
   onChange,
   required = false,
   value,
+  valueType = "text",
 }: {
   isEditing: boolean;
   label: string;
   onChange: (value: string) => void;
   required?: boolean;
   value: string;
+  valueType?: "email" | "text" | "website";
 }) {
+  const trimmedValue = value.trim();
+  let href: string | null = null;
+
+  if (valueType === "website" && trimmedValue) {
+    href = trimmedValue.includes("://") ? trimmedValue : `https://${trimmedValue}`;
+  }
+
+  if (valueType === "email" && trimmedValue) {
+    href = `mailto:${trimmedValue}`;
+  }
+
   return (
     <div className="company-detail-row">
       <span>{label}</span>
@@ -425,6 +465,10 @@ function EditableDetailRow({
           aria-label={`${label} value`}
           required={required}
         />
+      ) : href ? (
+        <a className="company-detail-link" href={href} target={valueType === "website" ? "_blank" : undefined} rel={valueType === "website" ? "noreferrer" : undefined}>
+          {value}
+        </a>
       ) : (
         <strong>{value}</strong>
       )}
@@ -432,12 +476,124 @@ function EditableDetailRow({
   );
 }
 
-function OverviewPanel({ companyName }: { companyName: string }) {
+function formatLoggedOnDate(value: string) {
+  const parsed = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(parsed);
+}
+
+function formatCreatedAtDate(value: string) {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
+}
+
+function OverviewPanel({
+  companyName,
+  draftDate,
+  draftMessage,
+  error,
+  infoMessage,
+  isSaving,
+  logs,
+  onDateChange,
+  onMessageChange,
+  onSubmit,
+}: {
+  companyName: string;
+  draftDate: string;
+  draftMessage: string;
+  error: string;
+  infoMessage: string;
+  isSaving: boolean;
+  logs: CompanyLog[];
+  onDateChange: (value: string) => void;
+  onMessageChange: (value: string) => void;
+  onSubmit: () => void;
+}) {
   return (
-    <div className="company-overview-empty">
-      <CircleHelp size={28} />
-      <h3>{companyName} overview</h3>
-      <p>Key account summary, open opportunities, and relationship notes can live here when the record is connected to live CRM data.</p>
+    <div className="company-overview-panel">
+      <section className="company-log-composer">
+        <div className="company-log-composer-header">
+          <div>
+            <span className="company-log-eyebrow">Overview</span>
+            <h3>{companyName} relationship log</h3>
+          </div>
+          <div className="company-log-date-field">
+            <label htmlFor="company-log-date">Log date</label>
+            <input id="company-log-date" type="date" value={draftDate} onChange={(event) => onDateChange(event.target.value)} />
+          </div>
+        </div>
+
+        <label className="company-log-message-field" htmlFor="company-log-message">
+          <span>Add log</span>
+          <textarea
+            id="company-log-message"
+            rows={4}
+            value={draftMessage}
+            onChange={(event) => onMessageChange(event.target.value)}
+            placeholder="Capture a meeting note, next step, blocker, or account update."
+          />
+        </label>
+
+        <div className="company-log-composer-footer">
+          <div className="company-log-feedback" aria-live="polite">
+            {error ? <p className="form-error">{error}</p> : null}
+            {infoMessage ? <p className="form-success">{infoMessage}</p> : null}
+          </div>
+          <button type="button" className="company-log-submit-button" disabled={isSaving} onClick={onSubmit}>
+            <History size={16} />
+            {isSaving ? "Saving..." : "Add log"}
+          </button>
+        </div>
+      </section>
+
+      {logs.length ? (
+        <section className="company-log-list-section">
+          <div className="history-header">
+            <h3>Recent logs</h3>
+            <span>{logs.length} {logs.length === 1 ? "entry" : "entries"}</span>
+          </div>
+          <div className="company-log-list">
+            {logs.map((log) => (
+              <article className="company-log-item" key={log.id}>
+                <div className="company-log-item-date">
+                  <strong>{formatLoggedOnDate(log.loggedOn)}</strong>
+                  <span>Logged by {log.authorName}</span>
+                </div>
+                <div className="company-log-item-body">
+                  <p>{log.body}</p>
+                  <time dateTime={log.createdAt}>Added {formatCreatedAtDate(log.createdAt)}</time>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <div className="company-overview-empty">
+          <CircleHelp size={28} />
+          <h3>No logs yet</h3>
+          <p>Add the first dated update so account context, open actions, and relationship history stay visible on this profile.</p>
+        </div>
+      )}
     </div>
   );
 }

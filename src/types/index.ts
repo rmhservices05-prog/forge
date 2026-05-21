@@ -27,6 +27,15 @@ export type Company = {
   phoneNumber: string;
 };
 
+export type CompanyLog = {
+  id: string;
+  companyId: number;
+  authorName: string;
+  body: string;
+  loggedOn: string;
+  createdAt: string;
+};
+
 export type TaskStatus = "To Do" | "In Progress" | "Done";
 
 export type TaskPriority = "Low" | "Medium" | "High" | "Critical";

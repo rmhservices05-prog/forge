@@ -1,6 +1,5 @@
 import {
   Bell,
-  Building2,
   CheckSquare,
   ChevronDown,
   CircleHelp,
@@ -17,8 +16,8 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { CompanyLogoBadge } from "../components/CompanyLogoBadge";
 import { type CompanyInput } from "../data/companyRepository";
-import { initials } from "../data/companies";
 import { useCompanies } from "../hooks/useCompanies";
 import type { CompanyStatus } from "../types";
 
@@ -522,10 +521,14 @@ export function Companies() {
                   </td>
                   <td>
                     <div className="company-name-cell">
-                      <span className={`company-logo logo-${company.logoColor}`} aria-hidden="true">
-                        <Building2 size={15} />
-                        <span>{initials(company.name)}</span>
-                      </span>
+                      <CompanyLogoBadge
+                        color={company.logoColor}
+                        fallbackIconSize={15}
+                        imageClassName="company-logo-image"
+                        name={company.name}
+                        website={company.website}
+                        wrapperClassName="company-logo"
+                      />
                       <strong>{company.name}</strong>
                     </div>
                   </td>

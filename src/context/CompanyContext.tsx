@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { companyLogRepository, type CompanyLogInput } from "../data/companyLogRepository";
 import { companyRepository, type CompanyInput } from "../data/companyRepository";
 import { useAuth } from "../hooks/useAuth";
 import { CompanyContext, type CompanyContextValue } from "./companyContextValue";
@@ -6,12 +7,14 @@ import { CompanyContext, type CompanyContextValue } from "./companyContextValue"
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
   const [companies, setCompanies] = useState<CompanyContextValue["companies"]>([]);
+  const [companyLogs, setCompanyLogs] = useState<CompanyContextValue["companyLogs"]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const refresh = useCallback(async () => {
     if (!profile) {
       setCompanies([]);
+      setCompanyLogs([]);
       setLoading(false);
       setError("");
       return;
@@ -21,8 +24,12 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     setError("");
 
     try {
-      const nextCompanies = await companyRepository.listCompanies(profile.organizationId);
+      const [nextCompanies, nextCompanyLogs] = await Promise.all([
+        companyRepository.listCompanies(profile.organizationId),
+        companyLogRepository.listCompanyLogs(profile.organizationId),
+      ]);
       setCompanies(nextCompanies);
+      setCompanyLogs(nextCompanyLogs);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load companies");
     } finally {
@@ -37,6 +44,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CompanyContextValue>(
     () => ({
       companies,
+      companyLogs,
       loading,
       error,
       refresh,
@@ -87,8 +95,33 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
           throw deleteError;
         }
       },
+      async createCompanyLog(input: CompanyLogInput) {
+        if (!profile) {
+          throw new Error("You must be signed in to add a company log.");
+        }
+
+        setError("");
+
+        try {
+          const companyLog = await companyLogRepository.createCompanyLog(profile.organizationId, input);
+          setCompanyLogs((current) => {
+            const nextLogs = [companyLog, ...current];
+            return nextLogs.sort((left, right) => {
+              if (left.loggedOn !== right.loggedOn) {
+                return right.loggedOn.localeCompare(left.loggedOn);
+              }
+
+              return right.createdAt.localeCompare(left.createdAt);
+            });
+          });
+          return companyLog;
+        } catch (createError) {
+          setError(createError instanceof Error ? createError.message : "Unable to create company log");
+          throw createError;
+        }
+      },
     }),
-    [companies, error, loading, profile, refresh],
+    [companies, companyLogs, error, loading, profile, refresh],
   );
 
   return <CompanyContext.Provider value={value}>{children}</CompanyContext.Provider>;
