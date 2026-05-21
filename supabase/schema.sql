@@ -177,14 +177,7 @@ alter table public.organization_preferences enable row level security;
 drop policy if exists "organizations read same organization" on public.organizations;
 create policy "organizations read same organization" on public.organizations
 for select
-using (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = organizations.id
-  )
-);
+using (auth.role() = 'authenticated');
 
 drop policy if exists "profiles read same organization" on public.profiles;
 create policy "profiles read same organization" on public.profiles
@@ -197,122 +190,43 @@ for update
 using (user_id = auth.uid())
 with check (user_id = auth.uid());
 
+drop policy if exists "profiles insert by authenticated users" on public.profiles;
+create policy "profiles insert by authenticated users" on public.profiles
+for insert
+with check (auth.role() = 'authenticated');
+
 drop policy if exists "companies same organization access" on public.companies;
 create policy "companies same organization access" on public.companies
 for all
-using (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = companies.organization_id
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = companies.organization_id
-  )
-);
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
 
 drop policy if exists "tasks same organization access" on public.tasks;
 create policy "tasks same organization access" on public.tasks
 for all
-using (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = tasks.organization_id
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = tasks.organization_id
-  )
-);
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
 
 drop policy if exists "task activity same organization access" on public.task_activity;
 create policy "task activity same organization access" on public.task_activity
 for all
-using (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = task_activity.organization_id
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = task_activity.organization_id
-  )
-);
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
 
 drop policy if exists "task subtasks same organization access" on public.task_subtasks;
 create policy "task subtasks same organization access" on public.task_subtasks
 for all
-using (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = task_subtasks.organization_id
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = task_subtasks.organization_id
-  )
-);
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
 
 drop policy if exists "task comments same organization access" on public.task_comments;
 create policy "task comments same organization access" on public.task_comments
 for all
-using (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = task_comments.organization_id
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = task_comments.organization_id
-  )
-);
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
 
 drop policy if exists "organization preferences same organization access" on public.organization_preferences;
 create policy "organization preferences same organization access" on public.organization_preferences
 for all
-using (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = organization_preferences.organization_id
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.profiles current_profile
-    where current_profile.user_id = auth.uid()
-      and current_profile.organization_id = organization_preferences.organization_id
-  )
-);
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
