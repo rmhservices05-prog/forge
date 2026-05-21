@@ -1,12 +1,12 @@
 import { Check, ChevronDown, MessageSquare, Trash2, X } from "lucide-react";
 import { Fragment } from "react";
 import { useState } from "react";
-import { getUserById, users } from "../data/users";
-import type { Task, TaskInput, TaskStatus } from "../types";
+import type { Task, TaskInput, TaskStatus, User } from "../types";
 import { isTaskOverdue } from "../utils/date";
 import { statusOptions } from "../utils/tasks";
 
 type TaskTableProps = {
+  users: User[];
   draftTask: TaskInput | null;
   hasProgressColumn: boolean;
   tasks: Task[];
@@ -24,6 +24,7 @@ type TaskTableProps = {
 };
 
 export function TaskTable({
+  users,
   draftTask,
   hasProgressColumn,
   tasks,
@@ -41,6 +42,7 @@ export function TaskTable({
 }: TaskTableProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dropTargetStatus, setDropTargetStatus] = useState<TaskStatus | null>(null);
+  const getUserById = (userId: string) => users.find((user) => user.id === userId);
 
   if (!tasks.length && !draftTask) {
     return (

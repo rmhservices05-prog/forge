@@ -31,6 +31,21 @@ export type ActivityEvent = {
   createdAt: string;
 };
 
+export type TaskSubtask = {
+  id: string;
+  taskId: string;
+  text: string;
+  completed: boolean;
+  createdAt: string;
+};
+
+export type TaskComment = {
+  id: string;
+  taskId: string;
+  body: string;
+  createdAt: string;
+};
+
 export type TaskFilters = {
   assigneeId: string;
   status: string;

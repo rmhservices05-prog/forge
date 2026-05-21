@@ -1,22 +1,44 @@
 import { UsersRound } from "lucide-react";
-import { users } from "../data/users";
+import { useAuth } from "../hooks/useAuth";
+import { useOrganization } from "../hooks/useOrganization";
 
 // TODO: Add CRM module routes for contacts, companies, opportunities, contracts, compliance logs, and support tickets.
 export function TeamSettings() {
+  const { profile, user, signOut } = useAuth();
+  const { organization, users } = useOrganization();
+
   return (
     <div className="page-stack">
       <header className="page-header">
         <div>
           <p className="eyebrow">Team and access</p>
           <h2>Settings</h2>
-          <span>Placeholder for authentication, role-based access, and broader CRM modules.</span>
+          <span>Every authenticated Forge user is enrolled into the shared internal organization automatically.</span>
         </div>
+        <button className="secondary-button" onClick={() => void signOut()} type="button">
+          Sign out
+        </button>
       </header>
 
       <section className="split-grid">
         <article className="panel">
           <div className="panel-heading">
-            <h3>Initial Users</h3>
+            <h3>Signed-in User</h3>
+          </div>
+          <div className="user-list">
+            <div className="user-row">
+              <div>
+                <strong>{user?.email ?? "Unknown user"}</strong>
+                <span>{user?.id ?? "No session id available"}</span>
+              </div>
+              <span className="badge">{profile?.role ?? "Authenticated"}</span>
+            </div>
+          </div>
+        </article>
+
+        <article className="panel">
+          <div className="panel-heading">
+            <h3>{organization?.name ?? "Organization"} Members</h3>
             <UsersRound size={18} />
           </div>
           <div className="user-list">

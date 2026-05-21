@@ -1,6 +1,8 @@
 import { BarChart3, Building2, ClipboardList, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import { useOrganization } from "../hooks/useOrganization";
 
 const navigationItems = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
@@ -11,6 +13,8 @@ const navigationItems = [
 
 export function AppShell() {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { user, signOut } = useAuth();
+  const { organization } = useOrganization();
 
   return (
     <div className={`app-shell ${isCollapsed ? "sidebar-collapsed" : ""}`}>
@@ -38,8 +42,11 @@ export function AppShell() {
         </nav>
 
         <div className="sidebar-note">
-          <p>Internal task operations</p>
-          <span>Auth and role gates will attach here before external deployment.</span>
+          <p>{organization?.name ?? "Forge Internal"}</p>
+          <span>{user?.email ?? "Signed in"} is connected to the shared internal workspace.</span>
+          <button className="secondary-button sidebar-signout-button" onClick={() => void signOut()} type="button">
+            Sign out
+          </button>
         </div>
       </aside>
 

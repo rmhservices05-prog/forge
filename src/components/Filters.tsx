@@ -1,14 +1,14 @@
 import { Search } from "lucide-react";
-import { users } from "../data/users";
-import type { TaskFilters } from "../types";
+import type { TaskFilters, User } from "../types";
 import { priorityOptions, statusOptions } from "../utils/tasks";
 
 type FiltersProps = {
   filters: TaskFilters;
   onChange: (filters: TaskFilters) => void;
+  users: User[];
 };
 
-export function Filters({ filters, onChange }: FiltersProps) {
+export function Filters({ filters, onChange, users }: FiltersProps) {
   return (
     <section className="filters" aria-label="Task filters">
       <label className="search-field">

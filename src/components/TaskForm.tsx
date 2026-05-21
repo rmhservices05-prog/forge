@@ -1,25 +1,29 @@
 import { Save } from "lucide-react";
 import { FormEvent, useState } from "react";
-import { users } from "../data/users";
-import type { Task, TaskInput } from "../types";
+import { useAuth } from "../hooks/useAuth";
+import { useOrganization } from "../hooks/useOrganization";
+import type { Task, TaskInput, User } from "../types";
 import { priorityOptions, statusOptions } from "../utils/tasks";
 
 type TaskFormProps = {
   initialTask?: Task;
   submitLabel: string;
   onSubmit: (input: TaskInput) => void;
+  users?: User[];
 };
 
-const emptyForm: TaskInput = {
-  title: "",
-  description: "",
-  assigneeId: users[0]?.id ?? "",
-  priority: "Medium",
-  status: "To Do",
-  dueDate: new Date().toISOString().slice(0, 10),
-};
-
-export function TaskForm({ initialTask, submitLabel, onSubmit }: TaskFormProps) {
+export function TaskForm({ initialTask, submitLabel, onSubmit, users: usersProp }: TaskFormProps) {
+  const { user } = useAuth();
+  const organization = useOrganization();
+  const users = usersProp ?? organization.users;
+  const emptyForm: TaskInput = {
+    title: "",
+    description: "",
+    assigneeId: users[0]?.id ?? user?.id ?? "",
+    priority: "Medium",
+    status: "To Do",
+    dueDate: new Date().toISOString().slice(0, 10),
+  };
   const [form, setForm] = useState<TaskInput>(() =>
     initialTask
       ? {

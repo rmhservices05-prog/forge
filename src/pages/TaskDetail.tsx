@@ -3,15 +3,25 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { PriorityBadge } from "../components/PriorityBadge";
 import { StatusBadge } from "../components/StatusBadge";
 import { TaskForm } from "../components/TaskForm";
-import { getUserById } from "../data/users";
+import { useOrganization } from "../hooks/useOrganization";
 import { useTasks } from "../hooks/useTasks";
 import { formatDate, formatDateTime, isTaskOverdue } from "../utils/date";
 
 export function TaskDetail() {
   const { taskId } = useParams();
   const navigate = useNavigate();
-  const { tasks, activity, updateTask, deleteTask } = useTasks();
+  const { users, getUserById } = useOrganization();
+  const { tasks, activity, loading, error, updateTask, deleteTask } = useTasks();
   const task = tasks.find((candidate) => candidate.id === taskId);
+
+  if (loading) {
+    return (
+      <div className="centered-state">
+        <h2>Loading task...</h2>
+        <p>Pulling the latest task details from Supabase.</p>
+      </div>
+    );
+  }
 
   if (!task) {
     return <Navigate to="/tasks" replace />;
@@ -24,8 +34,9 @@ export function TaskDetail() {
 
   function handleDelete() {
     if (window.confirm(`Delete "${currentTask.title}"? This cannot be undone.`)) {
-      deleteTask(currentTask.id);
-      navigate("/tasks");
+      void deleteTask(currentTask.id).then(() => {
+        navigate("/tasks");
+      });
     }
   }
 
@@ -45,6 +56,8 @@ export function TaskDetail() {
           Delete
         </button>
       </header>
+
+      {error ? <div className="inline-alert error">{error}</div> : null}
 
       <section className="detail-grid">
         <article className="panel">
@@ -84,8 +97,9 @@ export function TaskDetail() {
           <TaskForm
             initialTask={currentTask}
             submitLabel="Update task"
+            users={users}
             onSubmit={(input) => {
-              updateTask(currentTask.id, input);
+              void updateTask(currentTask.id, input);
             }}
           />
         </article>

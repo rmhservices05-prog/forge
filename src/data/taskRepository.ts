@@ -1,143 +1,213 @@
-import { seedActivity, seedTasks } from "./seed";
 import type { ActivityEvent, Task, TaskInput } from "../types";
+import { requireSupabase } from "../lib/supabase";
 
-const TASKS_STORAGE_KEY = "forge.tasks.v1";
-const ACTIVITY_STORAGE_KEY = "forge.activity.v1";
+type TaskRow = {
+  id: string;
+  organization_id: string;
+  title: string;
+  description: string;
+  assignee_id: string;
+  status: Task["status"];
+  priority: Task["priority"];
+  due_date: string;
+  created_at: string;
+  updated_at: string;
+};
 
-// TODO: Replace localStorage with permission-aware API calls when authentication is added.
-// TODO: Route task mutations through server-side audit logging before production use.
-function readJson<T>(key: string, fallback: T): T {
-  const storedValue = window.localStorage.getItem(key);
-
-  if (!storedValue) {
-    window.localStorage.setItem(key, JSON.stringify(fallback));
-    return fallback;
-  }
-
-  try {
-    return JSON.parse(storedValue) as T;
-  } catch {
-    window.localStorage.setItem(key, JSON.stringify(fallback));
-    return fallback;
-  }
-}
-
-function writeJson<T>(key: string, value: T): void {
-  window.localStorage.setItem(key, JSON.stringify(value));
-}
+type ActivityRow = {
+  id: string;
+  organization_id: string;
+  task_id: string;
+  actor_id: string;
+  action: string;
+  created_at: string;
+};
 
 function createId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
-function activityEvent(taskId: string, action: string, actorId: string): ActivityEvent {
+function activityEvent(taskId: string, action: string, actorId: string, organizationId: string): ActivityRow {
   return {
     id: createId("activity"),
-    taskId,
-    actorId,
+    organization_id: organizationId,
+    task_id: taskId,
+    actor_id: actorId,
     action,
-    createdAt: new Date().toISOString(),
+    created_at: new Date().toISOString(),
   };
 }
 
-function normalizeTaskStatus(status: string): Task["status"] {
-  if (status === "Backlog") {
-    return "To Do";
-  }
-
-  if (status === "Blocked") {
-    return "In Progress";
-  }
-
-  return status as Task["status"];
-}
-
-function normalizeTask(task: Task): Task {
+function mapTask(row: TaskRow): Task {
   return {
-    ...task,
-    status: normalizeTaskStatus(task.status),
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    assigneeId: row.assignee_id,
+    status: row.status,
+    priority: row.priority,
+    dueDate: row.due_date,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
+}
+
+function mapActivity(row: ActivityRow): ActivityEvent {
+  return {
+    id: row.id,
+    taskId: row.task_id,
+    actorId: row.actor_id,
+    action: row.action,
+    createdAt: row.created_at,
+  };
+}
+
+async function insertActivity(event: ActivityRow): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client.from("task_activity").insert(event);
+
+  if (error) {
+    throw error;
+  }
 }
 
 export const taskRepository = {
-  listTasks(): Task[] {
-    const tasks = readJson<Task[]>(TASKS_STORAGE_KEY, seedTasks).map(normalizeTask);
-    writeJson(TASKS_STORAGE_KEY, tasks);
-    return tasks;
+  async listTasks(organizationId: string): Promise<Task[]> {
+    const client = requireSupabase();
+    const { data, error } = await client
+      .from("tasks")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? []).map((row) => mapTask(row as TaskRow));
   },
 
-  listActivity(): ActivityEvent[] {
-    return readJson<ActivityEvent[]>(ACTIVITY_STORAGE_KEY, seedActivity);
+  async listActivity(organizationId: string): Promise<ActivityEvent[]> {
+    const client = requireSupabase();
+    const { data, error } = await client
+      .from("task_activity")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? []).map((row) => mapActivity(row as ActivityRow));
   },
 
-  createTask(input: TaskInput): Task {
+  async createTask(organizationId: string, actorId: string, input: TaskInput): Promise<Task> {
+    const client = requireSupabase();
     const now = new Date().toISOString();
-    const task: Task = {
+    const row: TaskRow = {
       id: createId("task"),
-      ...input,
-      createdAt: now,
-      updatedAt: now,
+      organization_id: organizationId,
+      title: input.title,
+      description: input.description,
+      assignee_id: input.assigneeId,
+      status: input.status,
+      priority: input.priority,
+      due_date: input.dueDate,
+      created_at: now,
+      updated_at: now,
     };
 
-    const tasks = [task, ...this.listTasks()];
-    const activity = [
-      activityEvent(task.id, "Created task", input.assigneeId),
-      ...this.listActivity(),
-    ];
+    const { error } = await client.from("tasks").insert(row);
 
-    writeJson(TASKS_STORAGE_KEY, tasks);
-    writeJson(ACTIVITY_STORAGE_KEY, activity);
+    if (error) {
+      throw error;
+    }
 
-    return task;
+    await insertActivity(activityEvent(row.id, "Created task", actorId, organizationId));
+
+    return mapTask(row);
   },
 
-  updateTask(taskId: string, input: TaskInput): Task | undefined {
-    let updatedTask: Task | undefined;
+  async updateTask(
+    organizationId: string,
+    actorId: string,
+    taskId: string,
+    input: TaskInput,
+  ): Promise<Task | undefined> {
+    const client = requireSupabase();
+    const updatedAt = new Date().toISOString();
+    const { data, error } = await client
+      .from("tasks")
+      .update({
+        title: input.title,
+        description: input.description,
+        assignee_id: input.assigneeId,
+        status: input.status,
+        priority: input.priority,
+        due_date: input.dueDate,
+        updated_at: updatedAt,
+      })
+      .eq("organization_id", organizationId)
+      .eq("id", taskId)
+      .select("*")
+      .maybeSingle();
 
-    const tasks = this.listTasks().map((task) => {
-      if (task.id !== taskId) {
-        return task;
-      }
+    if (error) {
+      throw error;
+    }
 
-      updatedTask = {
-        ...task,
-        ...input,
-        updatedAt: new Date().toISOString(),
-      };
+    if (!data) {
+      return undefined;
+    }
 
-      return updatedTask;
+    await insertActivity(activityEvent(taskId, "Updated task fields", actorId, organizationId));
+
+    return mapTask(data as TaskRow);
+  },
+
+  async updateTaskStatus(
+    organizationId: string,
+    actorId: string,
+    taskId: string,
+    status: Task["status"],
+  ): Promise<Task | undefined> {
+    const client = requireSupabase();
+    const { data: existingTask, error: lookupError } = await client
+      .from("tasks")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .eq("id", taskId)
+      .maybeSingle();
+
+    if (lookupError) {
+      throw lookupError;
+    }
+
+    if (!existingTask) {
+      return undefined;
+    }
+
+    return this.updateTask(organizationId, actorId, taskId, {
+      title: existingTask.title,
+      description: existingTask.description,
+      assigneeId: existingTask.assignee_id,
+      status,
+      priority: existingTask.priority,
+      dueDate: existingTask.due_date,
     });
-
-    if (!updatedTask) {
-      return undefined;
-    }
-
-    const activity = [
-      activityEvent(taskId, "Updated task fields", input.assigneeId),
-      ...this.listActivity(),
-    ];
-
-    writeJson(TASKS_STORAGE_KEY, tasks);
-    writeJson(ACTIVITY_STORAGE_KEY, activity);
-
-    return updatedTask;
   },
 
-  updateTaskStatus(taskId: string, status: Task["status"]): Task | undefined {
-    const task = this.listTasks().find((candidate) => candidate.id === taskId);
+  async deleteTask(organizationId: string, taskId: string): Promise<void> {
+    const client = requireSupabase();
+    const { error } = await client
+      .from("tasks")
+      .delete()
+      .eq("organization_id", organizationId)
+      .eq("id", taskId);
 
-    if (!task) {
-      return undefined;
+    if (error) {
+      throw error;
     }
-
-    return this.updateTask(taskId, { ...task, status });
-  },
-
-  deleteTask(taskId: string): void {
-    const tasks = this.listTasks().filter((task) => task.id !== taskId);
-    const activity = this.listActivity().filter((event) => event.taskId !== taskId);
-
-    writeJson(TASKS_STORAGE_KEY, tasks);
-    writeJson(ACTIVITY_STORAGE_KEY, activity);
   },
 };

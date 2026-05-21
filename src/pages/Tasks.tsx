@@ -1,13 +1,15 @@
 import { ChevronDown, MoreHorizontal, Plus, X } from "lucide-react";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Filters } from "../components/Filters";
 import { PriorityBadge } from "../components/PriorityBadge";
 import { StatusBadge } from "../components/StatusBadge";
-import { Filters } from "../components/Filters";
 import { TaskForm } from "../components/TaskForm";
 import { TaskTable } from "../components/TaskTable";
-import { getUserById, users } from "../data/users";
+import { taskWorkspaceRepository } from "../data/taskWorkspaceRepository";
+import { useAuth } from "../hooks/useAuth";
+import { useOrganization } from "../hooks/useOrganization";
 import { useTasks } from "../hooks/useTasks";
-import type { Task, TaskFilters, TaskInput } from "../types";
+import type { Task, TaskComment, TaskFilters, TaskInput, TaskSubtask } from "../types";
 import { formatDate, formatDateTime, isTaskOverdue } from "../utils/date";
 import { filterTasks } from "../utils/tasks";
 
@@ -18,79 +20,33 @@ const defaultFilters: TaskFilters = {
   query: "",
 };
 
-type SubtaskItem = {
-  id: string;
-  taskId: string;
-  text: string;
-  completed: boolean;
-};
-
-type TaskComment = {
-  id: string;
-  taskId: string;
-  body: string;
-  createdAt: string;
-};
-
 type TaskProgressSummary = {
   total: number;
   completed: number;
 };
 
-const SUBTASKS_STORAGE_KEY = "forge.subtasks.v1";
-const COMMENTS_STORAGE_KEY = "forge.comments.v1";
-const PROJECT_ICON_STORAGE_KEY = "forge.projectIcon.v1";
-const defaultDraftTask: TaskInput = {
-  title: "",
-  description: "",
-  assigneeId: users[0]?.id ?? "",
-  status: "To Do",
-  priority: "Medium",
-  dueDate: new Date().toISOString().slice(0, 10),
-};
-
-function readSubtasks(): SubtaskItem[] {
-  const storedValue = window.localStorage.getItem(SUBTASKS_STORAGE_KEY);
-
-  if (!storedValue) {
-    return [];
-  }
-
-  try {
-    return JSON.parse(storedValue) as SubtaskItem[];
-  } catch {
-    return [];
-  }
-}
-
-function readComments(): TaskComment[] {
-  const storedValue = window.localStorage.getItem(COMMENTS_STORAGE_KEY);
-
-  if (!storedValue) {
-    return [];
-  }
-
-  try {
-    return JSON.parse(storedValue) as TaskComment[];
-  } catch {
-    return [];
-  }
-}
-
-function readProjectIcon(): string {
-  return window.localStorage.getItem(PROJECT_ICON_STORAGE_KEY) ?? "";
-}
-
 export function Tasks() {
-  const { tasks, activity, createTask, updateTask, updateTaskStatus, deleteTask } = useTasks();
+  const { profile, user } = useAuth();
+  const { users, getUserById } = useOrganization();
+  const { tasks, activity, loading, error, createTask, updateTask, updateTaskStatus, deleteTask } = useTasks();
+  const defaultDraftTask: TaskInput = {
+    title: "",
+    description: "",
+    assigneeId: users[0]?.id ?? user?.id ?? "",
+    status: "To Do",
+    priority: "Medium",
+    dueDate: new Date().toISOString().slice(0, 10),
+  };
   const [filters, setFilters] = useState(defaultFilters);
   const [draftTask, setDraftTask] = useState<TaskInput | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [subtaskDraft, setSubtaskDraft] = useState("");
   const [commentDraft, setCommentDraft] = useState("");
-  const [subtasks, setSubtasks] = useState<SubtaskItem[]>(() => readSubtasks());
-  const [comments, setComments] = useState<TaskComment[]>(() => readComments());
-  const [projectIcon, setProjectIcon] = useState(() => readProjectIcon());
+  const [subtasks, setSubtasks] = useState<TaskSubtask[]>([]);
+  const [comments, setComments] = useState<TaskComment[]>([]);
+  const [projectIcon, setProjectIcon] = useState("");
+  const [workspaceLoading, setWorkspaceLoading] = useState(true);
+  const [workspaceError, setWorkspaceError] = useState("");
   const [focusCommentsForTaskId, setFocusCommentsForTaskId] = useState<string | null>(null);
   const commentsSectionRef = useRef<HTMLElement | null>(null);
   const projectIconInputRef = useRef<HTMLInputElement | null>(null);
@@ -121,6 +77,52 @@ export function Tasks() {
   );
 
   useEffect(() => {
+    if (!profile) {
+      setSubtasks([]);
+      setComments([]);
+      setProjectIcon("");
+      setWorkspaceLoading(false);
+      setWorkspaceError("");
+      return;
+    }
+
+    let isMounted = true;
+    setWorkspaceLoading(true);
+    setWorkspaceError("");
+
+    void Promise.all([
+      taskWorkspaceRepository.listSubtasks(profile.organizationId),
+      taskWorkspaceRepository.listComments(profile.organizationId),
+      taskWorkspaceRepository.getProjectIcon(profile.organizationId),
+    ])
+      .then(([nextSubtasks, nextComments, nextProjectIcon]) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setSubtasks(nextSubtasks);
+        setComments(nextComments);
+        setProjectIcon(nextProjectIcon);
+      })
+      .catch((loadError) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setWorkspaceError(loadError instanceof Error ? loadError.message : "Unable to load task workspace");
+      })
+      .finally(() => {
+        if (isMounted) {
+          setWorkspaceLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [profile]);
+
+  useEffect(() => {
     if (selectedTaskId !== focusCommentsForTaskId || !commentsSectionRef.current) {
       return;
     }
@@ -129,20 +131,10 @@ export function Tasks() {
     setFocusCommentsForTaskId(null);
   }, [focusCommentsForTaskId, selectedTaskId]);
 
-  function writeSubtasks(nextSubtasks: SubtaskItem[]) {
-    setSubtasks(nextSubtasks);
-    window.localStorage.setItem(SUBTASKS_STORAGE_KEY, JSON.stringify(nextSubtasks));
-  }
-
-  function writeComments(nextComments: TaskComment[]) {
-    setComments(nextComments);
-    window.localStorage.setItem(COMMENTS_STORAGE_KEY, JSON.stringify(nextComments));
-  }
-
-  function handleProjectIconChange(event: ChangeEvent<HTMLInputElement>) {
+  async function handleProjectIconChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
-    if (!file) {
+    if (!file || !profile) {
       return;
     }
 
@@ -150,76 +142,109 @@ export function Tasks() {
     reader.onload = () => {
       const nextIcon = typeof reader.result === "string" ? reader.result : "";
       setProjectIcon(nextIcon);
-      window.localStorage.setItem(PROJECT_ICON_STORAGE_KEY, nextIcon);
+      void taskWorkspaceRepository.setProjectIcon(profile.organizationId, nextIcon).catch((saveError) => {
+        setWorkspaceError(saveError instanceof Error ? saveError.message : "Unable to save project icon");
+      });
     };
     reader.readAsDataURL(file);
     event.target.value = "";
   }
 
-  function addSubtask(taskId: string) {
+  async function addSubtask(taskId: string) {
     const trimmedDraft = subtaskDraft.trim();
-    if (!trimmedDraft) {
+    if (!trimmedDraft || !profile) {
       return;
     }
 
-    const nextSubtasks: SubtaskItem[] = [
-      {
-        id: `subtask-${crypto.randomUUID()}`,
-        taskId,
-        text: trimmedDraft,
-        completed: false,
-      },
-      ...subtasks,
-    ];
-
-    writeSubtasks(nextSubtasks);
-    setSubtaskDraft("");
+    try {
+      const nextSubtask = await taskWorkspaceRepository.addSubtask(profile.organizationId, taskId, trimmedDraft);
+      setSubtasks((current) => [nextSubtask, ...current]);
+      setSubtaskDraft("");
+    } catch (saveError) {
+      setWorkspaceError(saveError instanceof Error ? saveError.message : "Unable to add subtask");
+    }
   }
 
-  function toggleSubtask(subtaskId: string) {
-    const nextSubtasks = subtasks.map((item) => {
-      if (item.id !== subtaskId) {
-        return item;
-      }
+  async function toggleSubtask(subtaskId: string) {
+    if (!profile) {
+      return;
+    }
 
-      return { ...item, completed: !item.completed };
-    });
+    const currentSubtask = subtasks.find((item) => item.id === subtaskId);
+    if (!currentSubtask) {
+      return;
+    }
 
-    writeSubtasks(nextSubtasks);
+    const nextCompleted = !currentSubtask.completed;
+    setSubtasks((current) =>
+      current.map((item) => (item.id === subtaskId ? { ...item, completed: nextCompleted } : item)),
+    );
+
+    try {
+      await taskWorkspaceRepository.toggleSubtask(profile.organizationId, subtaskId, nextCompleted);
+    } catch (saveError) {
+      setSubtasks((current) =>
+        current.map((item) => (item.id === subtaskId ? { ...item, completed: currentSubtask.completed } : item)),
+      );
+      setWorkspaceError(saveError instanceof Error ? saveError.message : "Unable to update subtask");
+    }
   }
 
-  function removeSubtask(subtaskId: string) {
-    const nextSubtasks = subtasks.filter((item) => item.id !== subtaskId);
-    writeSubtasks(nextSubtasks);
+  async function removeSubtask(subtaskId: string) {
+    if (!profile) {
+      return;
+    }
+
+    const previousSubtasks = subtasks;
+    setSubtasks((current) => current.filter((item) => item.id !== subtaskId));
+
+    try {
+      await taskWorkspaceRepository.removeSubtask(profile.organizationId, subtaskId);
+    } catch (saveError) {
+      setSubtasks(previousSubtasks);
+      setWorkspaceError(saveError instanceof Error ? saveError.message : "Unable to remove subtask");
+    }
   }
 
-  function addComment(taskId: string) {
+  async function addComment(taskId: string) {
     const trimmedDraft = commentDraft.trim();
-    if (!trimmedDraft) {
+    if (!trimmedDraft || !profile) {
       return;
     }
 
-    const nextComments: TaskComment[] = [
-      {
-        id: `comment-${crypto.randomUUID()}`,
-        taskId,
-        body: trimmedDraft,
-        createdAt: new Date().toISOString(),
-      },
-      ...comments,
-    ];
-
-    writeComments(nextComments);
-    setCommentDraft("");
+    try {
+      const nextComment = await taskWorkspaceRepository.addComment(profile.organizationId, taskId, trimmedDraft);
+      setComments((current) => [nextComment, ...current]);
+      setCommentDraft("");
+    } catch (saveError) {
+      setWorkspaceError(saveError instanceof Error ? saveError.message : "Unable to add comment");
+    }
   }
 
-  function handleDelete(task: Task) {
-    if (window.confirm(`Delete "${task.title}"? This cannot be undone.`)) {
-      deleteTask(task.id);
+  async function handleDelete(task: Task) {
+    if (!window.confirm(`Delete "${task.title}"? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await deleteTask(task.id);
       if (selectedTaskId === task.id) {
         setSelectedTaskId(null);
       }
+      setSubtasks((current) => current.filter((item) => item.taskId !== task.id));
+      setComments((current) => current.filter((item) => item.taskId !== task.id));
+    } catch (deleteError) {
+      setWorkspaceError(deleteError instanceof Error ? deleteError.message : "Unable to delete task");
     }
+  }
+
+  if (loading || workspaceLoading) {
+    return (
+      <div className="centered-state">
+        <h2>Loading tasks...</h2>
+        <p>Pulling your saved workspace from Supabase.</p>
+      </div>
+    );
   }
 
   return (
@@ -236,7 +261,7 @@ export function Tasks() {
           <input
             accept="image/*"
             className="project-icon-input"
-            onChange={handleProjectIconChange}
+            onChange={(event) => void handleProjectIconChange(event)}
             ref={projectIconInputRef}
             type="file"
           />
@@ -249,11 +274,16 @@ export function Tasks() {
         </div>
       </header>
 
+      {error ? <div className="inline-alert error">{error}</div> : null}
+      {workspaceError ? <div className="inline-alert error">{workspaceError}</div> : null}
+
       <section className="list-toolbar">
         <div className="toolbar-left">
           <button
             className="add-task-button"
-            onClick={() => setDraftTask((current) => current ?? { ...defaultDraftTask })}
+            onClick={() =>
+              setDraftTask((current) => current ?? { ...defaultDraftTask, assigneeId: users[0]?.id ?? user?.id ?? "" })
+            }
           >
             <Plus size={16} />
             Add task
@@ -264,9 +294,10 @@ export function Tasks() {
         </button>
       </section>
 
-      <Filters filters={filters} onChange={setFilters} />
+      <Filters filters={filters} onChange={setFilters} users={users} />
 
       <TaskTable
+        users={users}
         draftTask={draftTask}
         hasProgressColumn={visibleTasks.some((task) => Boolean(progressByTaskId[task.id]))}
         tasks={visibleTasks}
@@ -278,35 +309,47 @@ export function Tasks() {
             return;
           }
 
-          const nextTask = createTask({
+          void createTask({
             ...draftTask,
             title: draftTask.title.trim(),
             description: draftTask.description.trim() || draftTask.title.trim(),
-          });
-
-          setDraftTask(null);
-          setSelectedTaskId(nextTask.id);
+          })
+            .then((nextTask) => {
+              setDraftTask(null);
+              setSelectedTaskId(nextTask.id);
+            })
+            .catch((saveError) => {
+              setWorkspaceError(saveError instanceof Error ? saveError.message : "Unable to create task");
+            });
         }}
         onDraftChange={(nextDraftTask) => setDraftTask(nextDraftTask)}
         onDueDateChange={(task, dueDate) => {
-          updateTask(task.id, {
+          void updateTask(task.id, {
             title: task.title,
             description: task.description,
             assigneeId: task.assigneeId,
             status: task.status,
             priority: task.priority,
             dueDate,
+          }).catch((saveError) => {
+            setWorkspaceError(saveError instanceof Error ? saveError.message : "Unable to update task");
           });
         }}
-        onStatusChange={(task, status) => updateTaskStatus(task.id, status)}
+        onStatusChange={(task, status) => {
+          void updateTaskStatus(task.id, status).catch((saveError) => {
+            setWorkspaceError(saveError instanceof Error ? saveError.message : "Unable to update task status");
+          });
+        }}
         onAssigneeChange={(task, assigneeId) => {
-          updateTask(task.id, {
+          void updateTask(task.id, {
             title: task.title,
             description: task.description,
             assigneeId,
             status: task.status,
             priority: task.priority,
             dueDate: task.dueDate,
+          }).catch((saveError) => {
+            setWorkspaceError(saveError instanceof Error ? saveError.message : "Unable to update assignee");
           });
         }}
         onOpenTask={(task) => setSelectedTaskId(task.id)}
@@ -314,7 +357,9 @@ export function Tasks() {
           setSelectedTaskId(task.id);
           setFocusCommentsForTaskId(task.id);
         }}
-        onDelete={handleDelete}
+        onDelete={(task) => {
+          void handleDelete(task);
+        }}
       />
 
       <aside className={`task-side-panel ${selectedTask ? "open" : ""}`} aria-hidden={!selectedTask}>
@@ -381,7 +426,7 @@ export function Tasks() {
                   className="subtasks-form"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    addSubtask(selectedTask.id);
+                    void addSubtask(selectedTask.id);
                   }}
                 >
                   <input
@@ -398,14 +443,14 @@ export function Tasks() {
                         <label>
                           <input
                             checked={item.completed}
-                            onChange={() => toggleSubtask(item.id)}
+                            onChange={() => void toggleSubtask(item.id)}
                             type="checkbox"
                           />
                           <span className={item.completed ? "completed" : ""}>{item.text}</span>
                         </label>
                         <button
                           className="subtask-remove-button"
-                          onClick={() => removeSubtask(item.id)}
+                          onClick={() => void removeSubtask(item.id)}
                           type="button"
                         >
                           Remove
@@ -424,7 +469,9 @@ export function Tasks() {
                 initialTask={selectedTask}
                 submitLabel="Update task"
                 onSubmit={(input) => {
-                  updateTask(selectedTask.id, input);
+                  void updateTask(selectedTask.id, input).catch((saveError) => {
+                    setWorkspaceError(saveError instanceof Error ? saveError.message : "Unable to update task");
+                  });
                 }}
               />
             </section>
@@ -435,7 +482,7 @@ export function Tasks() {
                 className="task-comment-form"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  addComment(selectedTask.id);
+                  void addComment(selectedTask.id);
                 }}
               >
                 <textarea

@@ -1,41 +1,89 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { taskRepository } from "../data/taskRepository";
+import { useAuth } from "../hooks/useAuth";
 import { TaskContext, type TaskContextValue } from "./taskContextValue";
 
 export function TaskProvider({ children }: { children: ReactNode }) {
-  const [tasks, setTasks] = useState(() => taskRepository.listTasks());
-  const [activity, setActivity] = useState(() => taskRepository.listActivity());
+  const { profile, user } = useAuth();
+  const [tasks, setTasks] = useState<TaskContextValue["tasks"]>([]);
+  const [activity, setActivity] = useState<TaskContextValue["activity"]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const refresh = useCallback(() => {
-    setTasks(taskRepository.listTasks());
-    setActivity(taskRepository.listActivity());
-  }, []);
+  const refresh = useCallback(async () => {
+    if (!user || !profile) {
+      setTasks([]);
+      setActivity([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const [nextTasks, nextActivity] = await Promise.all([
+        taskRepository.listTasks(profile.organizationId),
+        taskRepository.listActivity(profile.organizationId),
+      ]);
+      setTasks(nextTasks);
+      setActivity(nextActivity);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unable to load tasks");
+    } finally {
+      setLoading(false);
+    }
+  }, [profile, user]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const value = useMemo<TaskContextValue>(
     () => ({
       tasks,
       activity,
-      createTask(input) {
-        const task = taskRepository.createTask(input);
-        refresh();
+      loading,
+      error,
+      refresh,
+      async createTask(input) {
+        if (!user || !profile) {
+          throw new Error("You must be signed in to create a task.");
+        }
+
+        const task = await taskRepository.createTask(profile.organizationId, user.id, input);
+        await refresh();
         return task;
       },
-      updateTask(taskId, input) {
-        const task = taskRepository.updateTask(taskId, input);
-        refresh();
+      async updateTask(taskId, input) {
+        if (!user || !profile) {
+          throw new Error("You must be signed in to update a task.");
+        }
+
+        const task = await taskRepository.updateTask(profile.organizationId, user.id, taskId, input);
+        await refresh();
         return task;
       },
-      updateTaskStatus(taskId, status) {
-        const task = taskRepository.updateTaskStatus(taskId, status);
-        refresh();
+      async updateTaskStatus(taskId, status) {
+        if (!user || !profile) {
+          throw new Error("You must be signed in to update a task.");
+        }
+
+        const task = await taskRepository.updateTaskStatus(profile.organizationId, user.id, taskId, status);
+        await refresh();
         return task;
       },
-      deleteTask(taskId) {
-        taskRepository.deleteTask(taskId);
-        refresh();
+      async deleteTask(taskId) {
+        if (!user || !profile) {
+          throw new Error("You must be signed in to delete a task.");
+        }
+
+        await taskRepository.deleteTask(profile.organizationId, taskId);
+        await refresh();
       },
     }),
-    [activity, refresh, tasks],
+    [activity, error, loading, profile, refresh, tasks, user],
   );
 
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;
