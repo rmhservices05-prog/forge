@@ -1,7 +1,10 @@
+create extension if not exists pgcrypto;
+
 drop trigger if exists on_auth_user_created on auth.users;
 drop function if exists public.handle_new_user();
 
 drop table if exists public.organization_preferences cascade;
+drop table if exists public.partners cascade;
 drop table if exists public.companies cascade;
 drop table if exists public.task_comments cascade;
 drop table if exists public.task_subtasks cascade;
@@ -47,6 +50,38 @@ create table public.companies (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+create table public.partners (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  name text not null,
+  "current_role" text,
+  profile_type text check (profile_type in (
+    'ex_prime_bd',
+    'ex_military',
+    'uxv_drone_sector',
+    'ecosystem_connector',
+    'nato_allied',
+    'other'
+  )),
+  network_value text,
+  linkedin_url text,
+  email text,
+  outreach_status text not null default 'not_contacted' check (outreach_status in (
+    'not_contacted',
+    'message_sent',
+    'replied',
+    'call_scheduled',
+    'agreement_sent',
+    'signed',
+    'declined'
+  )),
+  date_contacted date,
+  clause_5_clear text not null default 'tbc' check (clause_5_clear in ('yes', 'no', 'tbc')),
+  next_step text,
+  notes text
+);
+
 create table public.tasks (
   id text primary key,
   organization_id text not null references public.organizations (id) on delete cascade,
@@ -90,6 +125,35 @@ create table public.organization_preferences (
   organization_id text primary key references public.organizations (id) on delete cascade,
   project_icon text,
   updated_at timestamptz not null default timezone('utc', now())
+);
+
+insert into public.partners (
+  name,
+  "current_role",
+  profile_type,
+  network_value,
+  linkedin_url,
+  email,
+  outreach_status,
+  date_contacted,
+  clause_5_clear,
+  next_step,
+  notes
+)
+select
+  'Paul Billings',
+  'Head of Growth, Valarian (prev. Anduril Mission Ops, Comand AI VP)',
+  'ex_prime_bd',
+  'Anduril OEM network, Valarian defence tech, MoD MilStrat connections',
+  'https://linkedin.com/in/paul-billingsb19137153',
+  null,
+  'not_contacted',
+  null,
+  'tbc',
+  'Clarify MoD status before sending agreement',
+  'LinkedIn shows UK MoD Line Manager Feb 2022-Present. Must confirm whether role is current before sending agreement per Clause 5.'
+where not exists (
+  select 1 from public.partners where name = 'Paul Billings' and linkedin_url = 'https://linkedin.com/in/paul-billingsb19137153'
 );
 
 insert into public.organizations (id, name, slug)
@@ -173,6 +237,7 @@ alter table public.task_activity enable row level security;
 alter table public.task_subtasks enable row level security;
 alter table public.task_comments enable row level security;
 alter table public.organization_preferences enable row level security;
+alter table public.partners enable row level security;
 
 drop policy if exists "organizations read same organization" on public.organizations;
 create policy "organizations read same organization" on public.organizations
@@ -230,3 +295,25 @@ create policy "organization preferences same organization access" on public.orga
 for all
 using (auth.role() = 'authenticated')
 with check (auth.role() = 'authenticated');
+
+drop policy if exists "partners authenticated access" on public.partners;
+create policy "partners authenticated access" on public.partners
+for all
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
+
+grant select, insert, update, delete on table public.partners to authenticated;
+grant usage on schema public to authenticated;
+
+create or replace function public.update_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists partners_updated_at on public.partners;
+create trigger partners_updated_at
+  before update on public.partners
+  for each row execute function public.update_updated_at();

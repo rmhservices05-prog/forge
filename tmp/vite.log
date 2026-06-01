@@ -1,0 +1,23 @@
+
+> forge@0.1.0 dev
+> vite --host 127.0.0.1 --port 4173
+
+X [ERROR] Cannot read directory "..": Access is denied.
+
+X [ERROR] Could not resolve "C:\\Users\\info\\forge\\vite.config.ts"
+
+[31mfailed to load config from C:\Users\info\forge\vite.config.ts[39m
+[31merror when starting dev server:
+Error: Build failed with 2 errors:
+error: Cannot read directory "..": Access is denied.
+error: Could not resolve "C:\\Users\\info\\forge\\vite.config.ts"
+    at failureErrorWithLog (C:\Users\info\forge\node_modules\esbuild\lib\main.js:1748:15)
+    at C:\Users\info\forge\node_modules\esbuild\lib\main.js:1207:25
+    at runOnEndCallbacks (C:\Users\info\forge\node_modules\esbuild\lib\main.js:1588:45)
+    at buildResponseToResult (C:\Users\info\forge\node_modules\esbuild\lib\main.js:1205:7)
+    at C:\Users\info\forge\node_modules\esbuild\lib\main.js:1232:16
+    at responseCallbacks.<computed> (C:\Users\info\forge\node_modules\esbuild\lib\main.js:884:9)
+    at handleIncomingPacket (C:\Users\info\forge\node_modules\esbuild\lib\main.js:939:12)
+    at Socket.readFromStdout (C:\Users\info\forge\node_modules\esbuild\lib\main.js:862:7)
+    at Socket.emit (node:events:508:28)
+    at addChunk (node:internal/streams/readable:563:12)[39m

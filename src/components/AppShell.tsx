@@ -1,7 +1,8 @@
-import { BarChart3, Building2, ClipboardList, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
+import { BarChart3, Building2, ClipboardList, PanelLeftClose, PanelLeftOpen, Users, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import forgeLogo from "../assets/forgetrans.png";
+import { AppToaster } from "./AppToaster";
 import { useAuth } from "../hooks/useAuth";
 import { useOrganization } from "../hooks/useOrganization";
 
@@ -9,6 +10,7 @@ const navigationItems = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { to: "/companies", label: "Companies", icon: Building2 },
   { to: "/tasks", label: "Tasks", icon: ClipboardList },
+  { to: "/partners", label: "Partners", icon: UsersRound },
 ];
 const teamNavigationItem = { to: "/settings", label: "Settings", icon: Users };
 
@@ -63,6 +65,7 @@ export function AppShell() {
       </aside>
 
       <main className="main-panel">
+        <AppToaster />
         <Outlet />
       </main>
     </div>

@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { AuthProvider } from "./context/AuthContext";
 import { CompanyProvider } from "./context/CompanyContext";
+import { PartnerProvider } from "./context/PartnerContext";
 import { OrganizationProvider } from "./context/OrganizationContext";
 import { TaskProvider } from "./context/TaskContext";
 import { useAuth } from "./hooks/useAuth";
@@ -10,6 +11,7 @@ import { AuthPage } from "./pages/AuthPage";
 import { Companies } from "./pages/Companies";
 import { CompanyProfile } from "./pages/CompanyProfile";
 import { Dashboard } from "./pages/Dashboard";
+import { PartnerPipeline } from "./pages/PartnerPipeline";
 import { TaskDetail } from "./pages/TaskDetail";
 import { Tasks } from "./pages/Tasks";
 import { TeamSettings } from "./pages/TeamSettings";
@@ -38,17 +40,20 @@ function OrganizationRoutes() {
   return (
     <CompanyProvider>
       <TaskProvider>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/companies" element={<Companies />} />
-            <Route path="/companies/:companyId" element={<CompanyProfile />} />
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/tasks/:taskId" element={<TaskDetail />} />
-            <Route path="/settings" element={<TeamSettings />} />
-          </Route>
-        </Routes>
+        <PartnerProvider>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/companies" element={<Companies />} />
+              <Route path="/companies/:companyId" element={<CompanyProfile />} />
+              <Route path="/tasks" element={<Tasks />} />
+              <Route path="/tasks/:taskId" element={<TaskDetail />} />
+              <Route path="/partners" element={<PartnerPipeline />} />
+              <Route path="/settings" element={<TeamSettings />} />
+            </Route>
+          </Routes>
+        </PartnerProvider>
       </TaskProvider>
     </CompanyProvider>
   );
