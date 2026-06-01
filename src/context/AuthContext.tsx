@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { organizationRepository, type OrganizationProfile } from "../data/organizationRepository";
 import { requireSupabase, supabase } from "../lib/supabase";
@@ -21,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<OrganizationProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const sessionRef = useRef<Session | null>(null);
 
   const syncProfile = useCallback(async (nextSession: Session | null) => {
     if (!nextSession?.user?.id) {
@@ -38,6 +39,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  const applySession = useCallback(
+    async (nextSession: Session | null, showLoading: boolean, clearError = true) => {
+      if (showLoading) {
+        setLoading(true);
+      }
+
+      if (clearError) {
+        setError("");
+      }
+      setSession(nextSession);
+
+      if (!nextSession?.user?.id) {
+        setProfile(null);
+        if (showLoading) {
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        await syncProfile(nextSession);
+      } catch (profileError) {
+        setError(profileError instanceof Error ? profileError.message : "Unable to load organization profile");
+      } finally {
+        if (showLoading) {
+          setLoading(false);
+        }
+      }
+    },
+    [syncProfile],
+  );
+
+  useEffect(() => {
     if (!supabase) {
       setError("Supabase is not configured. Add your Vite env vars to continue.");
       setLoading(false);
@@ -45,22 +82,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let isMounted = true;
-
-    async function hydrate(nextSession: Session | null) {
-      setLoading(true);
-      setError("");
-      setSession(nextSession);
-
-      try {
-        await syncProfile(nextSession);
-      } catch (profileError) {
-        setError(profileError instanceof Error ? profileError.message : "Unable to load organization profile");
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    }
 
     void supabase.auth.getSession().then(({ data, error: sessionError }) => {
       if (!isMounted) {
@@ -71,24 +92,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(sessionError.message);
       }
 
-      void hydrate(data.session ?? null);
+      void applySession(data.session ?? null, true, !sessionError);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!isMounted) {
         return;
       }
 
-      void hydrate(nextSession);
+      if (event === "TOKEN_REFRESHED") {
+        setSession(nextSession);
+        return;
+      }
+
+      if (event === "SIGNED_OUT") {
+        setError("");
+        setSession(null);
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+
+      const previousUserId = sessionRef.current?.user?.id ?? null;
+      const nextUserId = nextSession?.user?.id ?? null;
+      const shouldShowLoading = previousUserId !== nextUserId;
+
+      void applySession(nextSession, shouldShowLoading);
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [syncProfile]);
+  }, [applySession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
