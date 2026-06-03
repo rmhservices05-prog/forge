@@ -4,9 +4,9 @@ import { PartnerDialog, type PartnerFormValues } from "../components/PartnerDial
 import { PartnerSummaryBar } from "../components/PartnerSummaryBar";
 import { pushAppToast } from "../components/toastBus";
 import { usePartners } from "../hooks/usePartners";
-import type { Partner, Clause5Status, OutreachStatus, ProfileType } from "../types/partner";
+import type { Partner, OutreachStatus, ProfileType } from "../types/partner";
 
-type SortKey = "updated_at" | "name" | "outreach_status" | "date_contacted" | "clause_5_clear";
+type SortKey = "updated_at" | "name" | "outreach_status" | "date_contacted";
 type SortDirection = "asc" | "desc";
 type FilterValue = "all" | OutreachStatus;
 
@@ -27,12 +27,6 @@ const profileTypeLabels: Record<NonNullable<ProfileType>, string> = {
   ecosystem_connector: "Ecosystem",
   nato_allied: "NATO/Allied",
   other: "Other",
-};
-
-const clause5Labels: Record<Clause5Status, string> = {
-  yes: "Clear",
-  no: "Blocked",
-  tbc: "TBC",
 };
 
 const statusOptions: Array<{ value: FilterValue; label: string }> = [
@@ -104,17 +98,6 @@ function getStatusIntent(status: OutreachStatus) {
   }
 }
 
-function getClauseIntent(status: Clause5Status) {
-  switch (status) {
-    case "yes":
-      return "success";
-    case "no":
-      return "danger";
-    case "tbc":
-      return "warning";
-  }
-}
-
 function compareMaybeDate(left: string | null, right: string | null, direction: SortDirection) {
   const leftTime = left ? new Date(left).getTime() : direction === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
   const rightTime = right ? new Date(right).getTime() : direction === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
@@ -136,7 +119,6 @@ function toPartnerPayload(values: PartnerFormValues) {
     email: values.email.trim() || null,
     outreach_status: values.outreach_status,
     date_contacted: values.date_contacted || null,
-    clause_5_clear: values.clause_5_clear,
     next_step: values.next_step.trim() || null,
     notes: values.notes.trim() || null,
   };
@@ -178,18 +160,9 @@ export function PartnerPipeline() {
         return compareMaybeDate(left.date_contacted, right.date_contacted, sortDirection);
       }
 
-      if (sortKey === "clause_5_clear") {
-        return compareText(clause5Labels[left.clause_5_clear], clause5Labels[right.clause_5_clear], sortDirection);
-      }
-
       return compareMaybeDate(left.updated_at, right.updated_at, sortDirection);
     });
   }, [filter, partners, sortDirection, sortKey]);
-
-  const clause5TbcCount = useMemo(
-    () => partners.filter((partner) => partner.clause_5_clear === "tbc").length,
-    [partners],
-  );
 
   function openAddPartner() {
     setEditingPartner(null);
@@ -271,7 +244,6 @@ export function PartnerPipeline() {
       {error ? <div className="partners-inline-error">{error}</div> : null}
 
       <PartnerSummaryBar
-        clause5TbcCount={clause5TbcCount}
         statusCounts={statusCounts}
         total={partners.length}
       />
@@ -318,12 +290,6 @@ export function PartnerPipeline() {
                       <ArrowDownUp size={14} />
                     </button>
                   </th>
-                  <th style={{ width: 90 }}>
-                    <button className="partners-sort-button" onClick={() => toggleSort("clause_5_clear")} type="button">
-                      Clause 5
-                      <ArrowDownUp size={14} />
-                    </button>
-                  </th>
                   <th style={{ width: 200 }}>Next Step</th>
                   <th style={{ width: 80 }}>Actions</th>
                 </tr>
@@ -353,11 +319,6 @@ export function PartnerPipeline() {
                       </span>
                     </td>
                     <td>{formatDate(partner.date_contacted)}</td>
-                    <td>
-                      <span className={`partner-tag intent-${getClauseIntent(partner.clause_5_clear)} minimal`}>
-                        {clause5Labels[partner.clause_5_clear]}
-                      </span>
-                    </td>
                     <td title={partner.next_step ?? ""}>{textOrDash(partner.next_step)}</td>
                     <td>
                       <div className="partner-row-actions">

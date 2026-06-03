@@ -13,7 +13,6 @@ type PartnerRow = {
   email: string | null;
   outreach_status: Partner["outreach_status"];
   date_contacted: string | null;
-  clause_5_clear: Partner["clause_5_clear"];
   next_step: string | null;
   notes: string | null;
 };
@@ -31,7 +30,6 @@ function mapPartner(row: PartnerRow): Partner {
     email: row.email,
     outreach_status: row.outreach_status,
     date_contacted: row.date_contacted,
-    clause_5_clear: row.clause_5_clear,
     next_step: row.next_step,
     notes: row.notes,
   };
@@ -47,7 +45,6 @@ function toPartnerRow(input: PartnerInsert | PartnerUpdate) {
     email: input.email ?? null,
     outreach_status: input.outreach_status ?? "not_contacted",
     date_contacted: input.date_contacted ?? null,
-    clause_5_clear: input.clause_5_clear ?? "tbc",
     next_step: input.next_step ?? null,
     notes: input.notes ?? null,
     updated_at: new Date().toISOString(),

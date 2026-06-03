@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import type { Partner, Clause5Status, OutreachStatus, ProfileType } from "../types/partner";
+import type { Partner, OutreachStatus, ProfileType } from "../types/partner";
 
 export type PartnerFormValues = {
   name: string;
@@ -10,7 +10,6 @@ export type PartnerFormValues = {
   email: string;
   outreach_status: OutreachStatus;
   date_contacted: string;
-  clause_5_clear: Clause5Status;
   next_step: string;
   notes: string;
 };
@@ -51,7 +50,6 @@ const emptyForm: PartnerFormValues = {
   email: "",
   outreach_status: "not_contacted",
   date_contacted: "",
-  clause_5_clear: "tbc",
   next_step: "",
   notes: "",
 };
@@ -70,7 +68,6 @@ function partnerToFormValues(partner: Partner | null): PartnerFormValues {
     email: partner.email ?? "",
     outreach_status: partner.outreach_status,
     date_contacted: partner.date_contacted ?? "",
-    clause_5_clear: partner.clause_5_clear,
     next_step: partner.next_step ?? "",
     notes: partner.notes ?? "",
   };
@@ -205,19 +202,6 @@ export function PartnerDialog({ isOpen, mode, partner, onClose, onSave }: Partne
                 onChange={(event) => setValues((current) => ({ ...current, date_contacted: event.target.value }))}
                 type="date"
               />
-            </label>
-            <label className="partner-form-field">
-              <span>Clause 5 Clear</span>
-              <select
-                value={values.clause_5_clear}
-                onChange={(event) =>
-                  setValues((current) => ({ ...current, clause_5_clear: event.target.value as Clause5Status }))
-                }
-              >
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-                <option value="tbc">TBC</option>
-              </select>
             </label>
             <label className="partner-form-field partner-form-field-full">
               <span>Next Step</span>

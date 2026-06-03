@@ -15,8 +15,6 @@ export type OutreachStatus =
   | "signed"
   | "declined";
 
-export type Clause5Status = "yes" | "no" | "tbc";
-
 export interface Partner {
   id: string;
   created_at: string;
@@ -29,7 +27,6 @@ export interface Partner {
   email: string | null;
   outreach_status: OutreachStatus;
   date_contacted: string | null;
-  clause_5_clear: Clause5Status;
   next_step: string | null;
   notes: string | null;
 }
