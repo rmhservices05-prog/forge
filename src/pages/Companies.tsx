@@ -60,6 +60,7 @@ const emptyFilters: CompanyFilters = {
 
 const employeeRanges = ["1-50", "250 - 1k", "5K - 10K", "10K - 50K", "100K+"];
 const statuses: CompanyStatus[] = ["Active", "Prospect", "Inactive"];
+const industryOptions = ["Technology", "Banking", "Healthcare", "Retail", "Innovation", "Wellness", "E-Commerce", "Finance"];
 const countryOptions = [
   "Australia",
   "Belgium",
@@ -607,12 +608,18 @@ export function Companies() {
               <div className="companies-form-grid">
                 <label>
                   Industry
-                  <input
+                  <select
                     aria-invalid={submitted && !companyInput.industry.trim()}
                     onChange={(event) => setCompanyInput((current) => ({ ...current, industry: event.target.value }))}
-                    placeholder="Technology"
                     value={companyInput.industry}
-                  />
+                  >
+                    <option value="">Select an industry</option>
+                    {industryOptions.map((industry) => (
+                      <option key={industry} value={industry}>
+                        {industry}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <label>

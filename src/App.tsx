@@ -11,6 +11,7 @@ import { AuthPage } from "./pages/AuthPage";
 import { Companies } from "./pages/Companies";
 import { CompanyProfile } from "./pages/CompanyProfile";
 import { Dashboard } from "./pages/Dashboard";
+import { Product } from "./pages/Product";
 import { PartnerPipeline } from "./pages/PartnerPipeline";
 import { TaskDetail } from "./pages/TaskDetail";
 import { Tasks } from "./pages/Tasks";
@@ -45,6 +46,7 @@ function OrganizationRoutes() {
             <Route element={<AppShell />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/product" element={<Product />} />
               <Route path="/companies" element={<Companies />} />
               <Route path="/companies/:companyId" element={<CompanyProfile />} />
               <Route path="/tasks" element={<Tasks />} />
